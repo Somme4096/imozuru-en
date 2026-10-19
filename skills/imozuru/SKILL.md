@@ -1,147 +1,148 @@
 ---
 name: imozuru
 description: |
-  For catching up on an unfamiliar field. Starting from everyday words, it finds the field's terms, its central people, and its venues
-  (conferences, journals, personal blogs, videos, repositories, curated lists), then follows citations, links, and authors one lead at a time,
-  and saves the sources that hit (papers as well as personal posts and video captions) to ~/research/<topic>/sources/ as-is, without summarising.
-  It grows a map (map.md) each round and stops when every needed claim has a source, or when results saturate.
-  In watch mode, it pulls new posts from the venues on the map (Qiita and Zenn tags, note, YouTube, blogs, arXiv) via RSS and lists them with the opening line of each.
-  Use for: "dig into this field", "I want to catch up on this area", "start from the field's terms and people",
-  "find papers and prior work", "I want to copy an existing technique, find where it came from", "collect how skilled people do it", "save the originals", "/imozuru",
-  "is there research on X? I want the original", "I know nothing about this, dig up how it developed", "what is this called and who works on it",
-  "find the canonical papers on X", "literature dive", "show me what's new in X", "round up this week's posts on X", "catch up", "/imozuru watch".
-  Do not use for: checking a single fact (a year, whether something exists, one spec → just search);
-  finding documents on the local machine; writing a summary or explanation of material already read.
+  Catch up on an unfamiliar field. Starting from everyday words, find the field's terms, central people, and venues
+  (conferences, journals, personal blogs, videos, repositories, curated lists), then follow citations, links, and authors
+  lead by lead, and save the sources that hit (papers, personal posts, video captions) to ~/research/<topic>/sources/ unsummarised.
+  A map (map.md) grows each round; the dig stops when every needed claim has a source or results saturate.
+  Watch mode pulls new posts from the map's venues (Qiita and Zenn tags, note, YouTube, blogs, arXiv) over RSS and lists each with its opening line.
+  Use for: "dig into this field", "help me catch up on X", "find the papers and prior work on X",
+  "where did this technique come from?", "how do skilled people do X?", "is there research on X? I want the original",
+  "what is this called and who works on it?", "find the canonical papers on X", "literature dive",
+  "what's new in X this week", "/imozuru", "/imozuru watch".
+  Not for: checking a single fact (a year, whether something exists, one spec; just search),
+  finding files on the local machine, or summarising material already read.
 ---
 
 # imozuru
 
-Dig into an unfamiliar field, starting from not knowing its words and ending at the original sources.
-Two things are at the core: **save the sources without summarising them**, and **decide when to stop by evidence, not by confidence**.
+Dig into an unfamiliar field, from not knowing its vocabulary to holding its original sources.
+Two rules sit at the core: **save sources without summarising them**, and **stop on evidence, not confidence**.
 
-## Why it works this way (read first)
+## Why (read first)
 
-- **Why it does not summarise**: Summarising in detail during the confused early stage of a search invites premature closure and gets in the way of the process (Kuhlthau 1991). If the agent summarises in an early round, the search closes on the agent's view, and the details the user needs for their own judgement drop out. This skill came from the experience of "my own sense of things doesn't match what the AI found". The user, reading the sources, makes the judgement; the agent only points to where the sources are
-- **Why it does not commit to one direction**: When several directions are still possible, AI search picks one, and later searches reinforce that path until it fails (Zhou et al. 2026, HypoSearch). When unsure, split into branches, lay them side by side, and compare before moving on
-- **The route when there are no words**: Following citations sidesteps the whole problem of putting a subject into words (Bates 1989). When no search terms come to mind, follow citations and authors
-- The theory and where each source is: `references/theory.md`
+- **No summaries.** Detailed summaries in the confused early stage of a search cause premature closure (Kuhlthau 1991). An agent that summarises early closes the question on its own view and drops the details the user needs to judge. This skill grew out of "what the AI found doesn't match my sense of it". The user reads the sources and judges; the agent points to where they are.
+- **No committing early.** When several directions are open, AI search tends to pick one and let later searches reinforce it until it fails (Zhou et al. 2026, HypoSearch). When unsure, branch, compare, then move on.
+- **No words? Follow citations.** Chaining through citations avoids having to name the subject at all (Bates 1989). When search terms won't come, follow citations and authors.
+- Theory and source locations: `references/theory.md`.
 
-## Where things go
+## Layout
 
-The default is `~/research/<topic>/` (topic in lowercase English with hyphens, e.g. `search-methods`). If the user names another place, use that.
+Default: `~/research/<topic>/`, with the topic in lowercase English and hyphens (`search-methods`). Use another place if the user names one.
 
 ```
-map.md        … question, needed claims, terms, people, venues, source table, next leads (format below)
-log.md        … the path taken. Per round: who searched for what, what turned up, decisions and why. Log every searcher launched, one by one, including those that never returned (what it was asked, whether it returned, whether it was stopped)
-sources/      … the sources. PDFs plus their .txt; HTML as .md. No summary files
-extracts.json … extracts (written after stopping; see "The extract page" below)
-report.html   … the extract page (built by report.py)
-watch.tsv     … what to watch (only when watch mode is used)
-watch/        … watch results, as <date>.md
+map.md        question, needed claims, terms, people, venues, source table, next leads (format below)
+log.md        per round: who searched for what, what turned up, decisions and why; every searcher launched,
+              including ones that never returned (what it was asked, whether it returned or was stopped)
+sources/      the sources: PDF plus .txt, HTML as .md; no summary files
+extracts.json extracts, written after stopping (see "The extract page")
+report.html   the extract page, built by report.py
+watch.tsv     places to watch (watch mode only)
+watch/        watch results, one <date>.md per run
 ```
 
-## Searcher subagents
+## Searchers
 
-Round 0 and the search in each round are handed to **searcher subagents** ("searchers" below). Broad sweeping needs no judgement along the way, so a light model (Haiku or similar) is enough. If there is an agent definition limited to reading and web search, use it. Where subagents are unavailable, the agent runs the same requests itself, one after another.
+Hand round 0 and each round's searching to **searcher subagents** ("searchers"). Broad sweeps need no judgement, so a light model such as Haiku is enough. Use an agent definition limited to reading and web search if one exists. Without subagents, run the same briefs yourself, one after another.
 
 ## Flow
 
 ### 0. Write the question and the needed claims
 
-Create map.md in the format below, and list the **question** and the 3–6 **claims** needed to answer it (e.g. "what this field calls X", "what the standard methods are", "where they fail"). The claims are the yardstick for when to stop (HALT, Roh & Han 2026).
+Create map.md (format below) with the **question** and the 3–6 **claims** needed to answer it, e.g. "what this field calls X", "what the standard methods are", "where they fail". The claims decide when to stop (HALT, Roh & Han 2026).
 
-It is easy to write claims that are too soft. In one trial all five were "there is ...", they filled up in a single round and the search stopped, and the core of the request ("images generated by AI") was never checked. So follow these rules.
+Claims are easy to make too soft. In one trial all five read "there is …"; they filled in a single round, and the core of the request ("AI-generated images") was never checked. So:
 
-- **At least one claim carries a condition from the request's own wording** (e.g. if the request is "turn AI-generated images into editable data", then "there are results or cases applied to AI-generated images")
-- **Don't fill them with "there is ..." alone.** At least half should take a form that can't be answered without reading a source, such as "how well does it work", "where does it fail", "what is missing"
-- **The first needed claim is always "where does this field's knowledge collect (its venues)?"** This way, where to look is decided by searching, not by a fixed list (see "1. Mapping" below)
-- **Even for questions about tips or standard practice, make one claim "is there an original source or study behind this tip?"** If there is none, write "none found in the range searched". Answering from tutorials alone tends to conclude "there are no rules" without reaching the research underneath (in a 2026-10-12 comparison, the plain request concluded "there are no rules / it isn't theory" all three times, and imozuru, digging without the original source in its question, also never reached Rood 1879)
+- **At least one claim carries the request's own condition.** For "turn AI-generated images into editable data", write "there are results or cases on AI-generated images".
+- **Not only "there is …".** At least half should need a source to answer: how well it works, where it fails, what is missing.
+- **The first claim is always "where does this field's knowledge collect?"** Venues are found by searching, not taken from a fixed list (see step 1).
+- **For tips and standard practice, add "is there an original source or study behind this?"** If none turns up, write "none found in the range searched". Tutorials alone lead to "there are no rules": in a 2026-10-12 comparison, the plain request concluded that three times out of three, and imozuru without this claim never reached Rood 1879.
 
-The question may change along the way (berrypicking). When it does, rewrite the question and claims in map.md and write the reason in log.md.
+The question may shift along the way (berrypicking). When it does, rewrite the question and claims in map.md and log why.
 
-### 1. Mapping (round 0)
+### 1. Map the field (round 0)
 
-Run **two searchers with different approaches** side by side. The default is English and Japanese. In fields where one language is enough, split into "search by terms" and "find the standard reviews and textbooks". The more two different approaches turn up the same things, the more the map is filling in (the capture–recapture idea, Kastner 2007).
+Run **two searchers with different approaches**, by default English and Japanese. If one language covers the field, split into "search by terms" and "find the standard reviews and textbooks". The more the two overlap, the fuller the map (capture–recapture, Kastner 2007).
 
-How to brief the searchers:
-- Ask for four things back: **terms** (with the URL where each appeared), **people** (affiliation, best-known work), **venues** (conferences, journals, lists, repositories), and **standard materials** (title, author, year, a free-to-read URL)
-- Have them split the report into "found / searched but none / not searched". "Not searched" becomes the next leads as-is
-- **Don't ask for summaries.** Have them prioritise getting names and URLs exactly right
-- **Don't let them write files.** Downloading is the parent's job. In one trial a searcher wrote a temp file with curl
-- **Have them find the venues in round 0 rather than pick from a list.** Pass them questions like "where do the experts in this field write?" and "where are the standard materials published?", and add the venues that come up to "Venues" in map.md. Record in log.md how many results came from each venue (building up a record of how venues skew by field). Whether the know-how lives in papers or in personal posts depends on the field, so don't decide it in round 0. Use the following list only as examples when you have no idea at all where the venues are: conferences, journals, arXiv; personal blogs; Qiita, Zenn, note; YouTube; GitHub; X; tutorials on pixiv and FANBOX; forums. Searching from a fixed list alone skews toward Japanese tech articles (a fixed list skews toward its maker's habits)
-- In a field where you don't know the entry words, have them go from coarse to fine: encyclopedia (the References in English Wikipedia) → specialist encyclopedia → textbooks and lecture notes → survey papers → original papers (Yokoi 2017). In a field without papers: glossaries and intro articles → the people whose names come up in the field → those people's own records of their practice
-- In a field with no Japanese entry words, go in through English (searching "berrypicking ベイツ" returned nothing but fruit-picking articles)
-- **If search depth can be switched, have them search with normal search first, and redo it with deep search only when a wanted kind of result comes back empty.** Judge "thin" by kind, not by total count (articles turn up but zero videos, zero Japanese results, and so on). In the continent-painting trial, eight normal searches came back almost empty, and the first deep search turned up note, YouTube, and blogs all at once. In the MIX trial, articles turned up, but normal search found zero YouTube results. Deep search costs several times more, so don't start with it
+Brief the searchers to:
+- Return four things: **terms** (with the URL where each appeared), **people** (affiliation, best-known work), **venues** (conferences, journals, lists, repositories), and **standard materials** (title, author, year, free URL).
+- Sort the report into "found / searched, none / not searched". "Not searched" becomes the next leads.
+- **Not summarise.** Exact names and URLs come first.
+- **Not write files.** Downloading is the parent's job (in one trial a searcher wrote a temp file with curl).
+- **Find the venues instead of picking from a list.** Ask "where do this field's experts write?" and "where are the standard materials published?", add the answers to "Venues" in map.md, and log how many results came from each venue, so the per-field skew builds up on record. Whether the know-how lives in papers or personal posts depends on the field; don't decide in round 0. Only when you have no idea at all, use these as examples: conferences, journals, arXiv; personal blogs; Qiita, Zenn, note; YouTube; GitHub; X; pixiv and FANBOX tutorials; forums. A fixed list skews toward its maker's habits, which here means Japanese tech articles.
+- When the entry words are unknown, go coarse to fine: encyclopedia (English Wikipedia's References) → specialist encyclopedia → textbooks and lecture notes → surveys → original papers (Yokoi 2017). Without papers: glossaries and intro articles → the people whose names keep coming up → their own records of practice.
+- With no Japanese entry words, go in through English ("berrypicking ベイツ" returned only fruit-picking articles).
+- **Use normal search first, and deep search only when a wanted kind comes back empty.** Judge thinness by kind, not count: articles but no videos, nothing in Japanese. In the continent-painting trial, eight normal searches came back nearly empty and the first deep search surfaced note, YouTube, and blogs at once; in the MIX trial, normal search found articles but no YouTube. Deep search costs several times more, so don't start there.
 
-When they return, add the report's contents to the terms, people, and venues in map.md, and move the searchers' "not searched" items to **next leads**.
+When they return, add the terms, people, and venues to map.md, and move "not searched" into **next leads**.
 
-Searcher reports are usually based on search-result snippets, not on opening the sources (in one trial, both searchers opened zero pages). People's affiliations, "published", and numbers may be wrong. When putting them in map.md, add **(unverified)** at the end, and remove it once checked against the source.
+Searcher reports come from search-result snippets; searchers rarely open pages (in one trial, neither opened a single one). Affiliations, "published", and numbers can be wrong. Mark such entries **(unverified)** in map.md and drop the mark once checked against a source.
 
 ### 2. Follow (each round)
 
-From the next leads, pick ones with a strong scent (names that come up again and again, reviews and textbooks, things cited as the standard, people several others point to with "see this person's post") and follow them. There are six ways to follow (Bates 1989, Ellis 1987). The moves are the same in the world of papers and the world of personal posts; only the targets differ:
+From the next leads, follow those with a strong scent: names that keep coming up, reviews and textbooks, works cited as the standard, people others point to ("see this person's post"). There are six moves (Bates 1989, Ellis 1987). They work the same for papers and personal posts; only the targets change.
 
-| Move | For papers | For personal posts | Tool |
+| Move | Papers | Personal posts | Tool |
 |---|---|---|---|
-| Backward | References | Links inside the article, "based on so-and-so's post" | `chain.py refs`, grep the saved text |
-| Forward | Citing works (most cited first) | Articles and posts that introduce or quote it, Hatena Bookmark | `chain.py cites`, searchers |
-| By author | The author's other papers | Back posts on their blog, their post lists on Zenn, Qiita, note, their YouTube channel | `chain.py author`, searchers |
-| Scan a venue end to end | The central conferences and journals | Qiita and Zenn tags, pixiv tutorial tags, Discord, Reddit, awesome lists | Searchers |
-| Browse nearby | The same issue, the same list | Related posts, the same tag, playlists curated by the same person | Searchers |
-| Search again with new words | Search with the terms newly on the map | Same; also search slang and abbreviations used in the community | Searchers |
+| Backward | References | Links in the article, "based on so-and-so's post" | `chain.py refs`, grep the saved text |
+| Forward | Citing works, most cited first | Posts that introduce or quote it, Hatena Bookmark | `chain.py cites`, searchers |
+| By author | The author's other papers | Their blog archive; post lists on Zenn, Qiita, note; their YouTube channel | `chain.py author`, searchers |
+| Scan a venue | The central conferences and journals | Qiita and Zenn tags, pixiv tutorial tags, Discord, Reddit, awesome lists | Searchers |
+| Browse nearby | Same issue, same list | Related posts, same tag, the same person's playlists | Searchers |
+| Search again | The terms newly on the map | Same, plus community slang and abbreviations | Searchers |
 
-**The fewer papers a field has, the more its know-how lives in personal posts** (painting techniques, MIX, getting the most out of a tool, and so on). Don't narrow down to authoritative places only.
+**The fewer papers a field has, the more its know-how lives in personal posts** (painting techniques, MIX, getting the most out of a tool). Don't restrict yourself to authoritative sources.
 
-- **Look papers up by DOI.** Looking up by title can grab a different record or an explainer article, so check `chain.py find` candidates by year and title before using them
-- **For papers about a year old, `chain.py` returns 0 results.** OpenAlex hasn't caught up on registering their citations (in a trial, refs and cites were both 0 for papers less than a year old). 0 does not mean "none". For backward, grep the references section of the saved text (in a trial, this found the target paper). For forward, have a searcher look for "papers citing <title>"
-- **When two or more directions are possible, don't commit to one.** Run two searchers on different hypotheses and compare when they return
-- **Save hits with `fetch.py`.** Only those that print `OK` go in the source table in map.md. For `FAIL`, record the reason and URL in log.md (paywall, 404, login wall)
-- **Before writing that a standard work failed or was paywalled, look for another copy.** Try the author's or lab's page, the field's roundup sites, the technical report it came from, and university repositories. On 2026-10-14, the Mann & Thompson and Hovy originals that returned 403 on DTIC were on SFU's RST site. Don't use pirate sites
-- After saving, grep the .txt / .md for the parts relevant to the needed claims and **check the line numbers**. On each claim's line in map.md, write "which file, which line". Write only the location in the source and a short quote here, not a summary or conclusion
-- **Add a short quote (a few words if English) to each line number.** In two-column PDFs, pdftotext mixes the left and right columns onto one line, so a reader can't find the spot from the line number alone. With a quote, they can grep for it
+- **Look papers up by DOI.** A title lookup can land on another record or an explainer, so check `chain.py find` candidates by year and title first.
+- **`chain.py` returns 0 for papers about a year old.** OpenAlex hasn't registered their citations yet; 0 doesn't mean none. Go backward by grepping the references section of the saved text (in a trial, this found the target paper). Go forward by asking a searcher for "papers citing <title>".
+- **With two or more plausible directions, don't commit.** Run two searchers on different hypotheses and compare when both return.
+- **Save hits with `fetch.py`.** Only `OK` results go in map.md's source table. Log each `FAIL` with its reason and URL (paywall, 404, login wall).
+- **Before calling a standard work unreachable, look for another copy:** the author's or lab's page, the field's roundup sites, the technical report it came from, university repositories. On 2026-10-14, the Mann & Thompson and Hovy originals that got a 403 on DTIC were on SFU's RST site. No pirate sites.
+- After saving, grep the .txt / .md for the parts that bear on the claims and **confirm the line numbers**. On the claim's line in map.md, write file and line, with a short quote. No summary, no conclusion.
+- **Pair every line number with a short quote** (a few words, in English). pdftotext merges the columns of two-column PDFs onto one line, so a line number alone won't find the spot, but a quote can be grepped.
 
-### 3. End-of-round decision (parent)
+### 3. Decide at the end of the round (parent)
 
-**Decide only after every searcher you launched has returned.** Stop on the spot any searcher you moved on from without waiting for.
+**Wait until every searcher you launched has returned.** If you moved on without one, stop it now.
 
-**Round 0 goes as far as running the searchers side by side and building the map** (no need to save sources yet). **One round = saving sources from the leads and following at least once from them (backward, forward, or by author).** Whether you relaunch searchers doesn't matter. In a field without papers, following the links in a saved article backward counts as once. A round in which the searchers came up empty and the parent searched on its own also counts as a round (saturation isn't counted for that round). **Came up empty** = none of the pages the searchers listed turned out to be a hit once saved (not the number of search results; searchers report without opening pages, so whether something is a hit is only known once the parent saves it).
+**Round 0** ends once the searchers have built the map; no sources need saving yet. **A round** means saving sources from the leads and following from them at least once: backward, forward, or by author. Relaunching searchers is optional. Without papers, following a saved article's links backward counts. A round where the searchers came up empty and the parent searched alone still counts, but don't measure saturation on it. **Came up empty** means none of the pages the searchers listed turned out to be a hit once saved. It isn't about result counts; searchers report without opening pages, so only the parent's save shows a hit.
 
-At the end of each round, stop if any of the following holds. Write the reason in log.md.
+Stop when any of these holds, and log the reason:
 
-- **Every needed claim has a location in a source** (file:line plus a short quote for each claim)
-- **Saturated**: 70% or more of the people and materials the searchers listed this round are already in map.md, and almost no new terms turn up. Write the numerator and denominator in log.md (e.g. "11 of 14 listed were already known"). The 70% is a rule of thumb set in trials, and its basis is still weak
-  - **Count only searchers that searched the same question with different approaches** (English and Japanese, term search and review search). Two searchers chasing different hypotheses cover different topics, so low overlap is expected and says nothing about saturation (in a trial, a separate branch scored 2/14). For each hypothesis branch, judge by whether that branch's claims are filled
-  - **"Already known" includes what the parent found on its own.** When passing searchers the known list, pass the same list (once the parent's own finds were left out and the numerator came out too small)
-- **Four rounds done**: write down the claims not reached and why (paywall, not found), and stop
-- **Stopped at a wall**: the sources for the remaining claims are all behind login walls (X, pixiv, Xiaohongshu, members-only sites) or paywalls, and nothing more can be had this side of the wall. List the URLs, stop, and have the user open them in their browser ("Hand over" below)
-  - **A claim that is only "partial" also counts as stopped at a wall if the sources for the missing part are all behind walls.** If the missing part can still be searched for this side of the wall, don't stop
-  - **If something is free to read and only blocked by the publisher's bot protection (a Cloudflare challenge, a 403), ask the user to open it in their browser before stopping.** A person's browser passes the challenge naturally. If there is a tool that can drive the user's browser (an MCP that connects to DevTools, for example), you may use it after checking with the user. Don't use tricks to slip past the challenge. "Request a copy" forms and paid content stay walls
-- **Cut off by agreement**: the request had a time or count limit and you hit it before reaching any of the four above. Write how far each yardstick got (how many claims have sources, the saturation numerator and denominator) and stop. Don't pretend a yardstick was met
+- **Every needed claim has a source location** (file:line and a short quote each).
+- **Saturated**: at least 70% of the people and materials the searchers listed this round are already in map.md, and new terms have nearly dried up. Log the fraction ("11 of 14 already known"). The 70% came from trials and is still a rough guess.
+  - **Count only searchers that asked the same question in different ways** (English and Japanese, terms and reviews). Searchers on different hypotheses overlap little by nature, so they say nothing about saturation (one trial branch scored 2/14). Judge each hypothesis branch by whether its own claims are filled.
+  - **"Already known" includes the parent's own finds.** Give searchers that same list (once the parent's finds were left out and the fraction came out too low).
+- **Four rounds done**: list the claims not reached and why (paywall, not found), then stop.
+- **Blocked by walls**: the sources for every remaining claim sit behind login walls (X, pixiv, Xiaohongshu, members-only sites) or paywalls, and nothing more is reachable from outside. List the URLs and ask the user to open them in their browser (see "Hand over").
+  - **A partially sourced claim counts as blocked if every missing piece is behind a wall.** If anything is still searchable outside the walls, keep going.
+  - **If the source is free and only bot protection blocks it (a Cloudflare challenge, a 403), ask the user to open it in their browser before stopping.** A real browser passes the challenge. A tool that drives the user's browser (such as a DevTools MCP) is fine once the user agrees. Don't trick your way past the challenge. "Request a copy" forms and paid content remain walls.
+- **Hit an agreed limit**: the request set a time or round limit and you reached it first. Report how far each criterion got (claims with sources, the saturation fraction) and stop. Don't pretend a criterion was met.
 
-**Don't stop before round 1 is done.** Even if every claim looks filled after round 0, follow forward or by author from a hit paper at least once before deciding. Under-search, quitting early and missing, is the other typical failure of AI search (Zhang et al. 2026). When not stopping, pick 2–4 leads to follow next round and write them in log.md before moving on.
+**Don't stop before round 1 is done.** Even if round 0 seems to fill every claim, follow forward or by author from a hit paper at least once. Under-search, quitting early and missing things, is the other classic failure of AI search (Zhang et al. 2026). When continuing, log 2–4 leads for the next round before moving on.
 
 ### 4. Hand over
 
-**Before returning, check whether any searchers you launched or processes you ran in the background are still running, and stop them if so.** Write what you stopped in log.md. In a 2026-10-12 trial, things launched inside an agent kept running after it had returned its report (what they were wasn't in log.md, so nobody knew).
+**Before replying, check for searchers or background processes you started that are still running, stop them, and log them.** In a 2026-10-12 trial, processes an agent had started kept running after it returned its report, and since log.md didn't record them, nobody could tell what they were.
 
-Once stopped, return the following to the user.
+Then give the user:
 
-1. **Why you stopped** (one of the five above)
-2. **Where the source is for each claim** (which line of `sources/<file>`). 1–2 lines per claim
-3. **What wasn't reached** (standard works behind paywalls, etc.)
-4. **First give the path to the extract page (`report.html`, see the section below)**, then pick 2–4 other sources you most want read, with the path and one line on "where to read" for each
-5. **Things behind walls that look important**: list the URL and one line on "why it looks important". The user opens and reads them in a browser where they are logged in. The agent does not create accounts or log in
-6. Gaps you noticed in the process itself (tool bugs, searchers overstepping)
-7. **Ask the user just one thing, "Did this match your sense of it?", and record the answer verbatim at the end of `<topic>/log.md`** (don't paraphrase). Whether to change the 70% stopping point or the round limit is decided by laying several of these records side by side (not from memory)
+1. **Why you stopped**: one of the five conditions above.
+2. **Where each claim's source is**: a line in `sources/<file>`, 1–2 lines per claim.
+3. **What wasn't reached**, such as paywalled standard works.
+4. **The path to the extract page (`report.html`) first**, then 2–4 other sources most worth reading, each with its path and one line on where to read.
+5. **Important-looking material behind walls**: the URL plus one line on why. The user opens it in a logged-in browser. The agent never creates accounts or logs in.
+6. Problems with the process itself: tool bugs, searchers overstepping.
+7. **One question, "Did this match your sense of it?", with the answer recorded verbatim at the end of `<topic>/log.md`.** Don't paraphrase it. Changes to the 70% threshold or the round limit are decided by reviewing several of these answers together, not from memory.
 
-Don't write summaries or explanations in the reply. Write them only when the user asks for a summary.
+No summaries or explanations in the reply, unless the user asks for one.
 
-### The extract page (a form for reading)
+### The extract page
 
-Dozens of saved sources go unread (English PDFs, hour-long captions). Summarising them would bring back premature closure. So once stopped, build a page of **extracts** (Ellis's extracting) and hand it over first.
+Dozens of saved sources go unread: English PDFs, hour-long captions. Summaries would bring premature closure back. So after stopping, build a page of **extracts** (Ellis's extracting) and hand it over first.
 
-1. Write `<topic_dir>/extracts.json`. Make a section for each needed claim, and list sentences **cut verbatim** from the sources (file, line, and `end` if needed). For non-English text, add a translation in `en` (the page marks it as a translation). Labels ([First-hand], auto-captions, etc.) go in `mark`. Where the left and right columns mix onto one line, as in two-column PDFs, separating the extract with "…" makes each piece be matched in order (the omission also shows on the page as "…"). Disagreements are only listed in `disagreements`, without saying which is right. What wasn't reached goes in `unreached`. For a model of the format, see `examples/demo/extracts.json` in the repository
-   Format (same as at the top of report.py; `?` may be omitted):
+1. Write `<topic_dir>/extracts.json`, with a section per needed claim listing passages **cut verbatim** from the sources (file, line, and `end` if needed). Put an English translation of non-English text in `en`; the page marks it as a translation. Labels such as [First-hand] or auto-captions go in `mark`. Where two-column PDFs merge columns onto one line, split the extract with "…" and each piece is matched in turn; the "…" also shows the reader that something was cut. List disagreements in `disagreements` without saying which side is right. Put what wasn't reached in `unreached`. `examples/demo/extracts.json` in the repository is a model.
+   Format (as at the top of report.py; `?` marks optional fields):
    ```
    {"title", "question", "stopped",
     "claims": [{"claim", "status": "sourced|partial|unsourced", "note"?,
@@ -149,26 +150,26 @@ Dozens of saved sources go unread (English PDFs, hour-long captions). Summarisin
     "disagreements"?: [{"topic", "quotes": [{"file", "line", "text", "who", ...}]}],
     "unreached"?: ["..."]}
    ```
-2. Run `scripts/report.py <topic_dir>`. **It checks by machine that each extract appears verbatim at the given lines of its source**, and if even one doesn't match, it stops without building the HTML (this keeps paraphrases from slipping in). If they match, `report.html` is built. Each extract has a "Read around it" toggle that opens the surrounding lines of the source
-3. The agent may write only the headings, the status (sourced / partial / unsourced), a one-line note, and translations. Notes carry no conclusions or judgements either ("the order differs from article to article" is fine; "this order is correct" is not). Write notes as flat sentences that say who did what and how
-4. Don't fix mistranscriptions in auto-captions; cut them out as they are (fixing them is paraphrasing). If the label says "auto-captions", the reader can check against the video
+2. Run `scripts/report.py <topic_dir>`. **It checks that each extract appears verbatim at the given lines of its source**, and if any fails, it builds nothing, so paraphrases can't slip in. Otherwise it writes `report.html`, where each extract can expand to show the surrounding lines.
+3. The agent writes only headings, statuses (sourced / partial / unsourced), one-line notes, and translations. Notes carry no conclusions or verdicts: "the order differs between articles" is fine, "this order is correct" is not. Write them as plain statements of who did what.
+4. Leave auto-caption mistranscriptions as they are; fixing them is paraphrasing. An "auto-captions" label tells the reader to check against the video.
 
-## Watch (watch mode)
+## Watch mode
 
-Make the "venues" on the map from a dig into the places to follow for new posts (Ellis's monitoring). Enter with "show me what's new in X", "round up this week's X", or "/imozuru watch <topic>". **Run it only when the user asks.** Whether to run it automatically on a schedule is decided after it has worked as intended a few times.
+Turn the venues from a dig into places to follow for new posts (Ellis's monitoring). Triggers: "what's new in X", "round up this week's X", "/imozuru watch <topic>". **Run it only when asked.** Scheduling it can wait until it has worked as intended a few times.
 
-1. **Check whether there is a map.** When `~/research/<topic>/map.md` doesn't exist (when asked cold for "what's new in React"), there are two ways in
-   - **In a hurry (default)**: add the standard places directly and start watching first: the official blog and GitHub releases, the Qiita tag, the Zenn topic, well-known personal blogs. Make a minimal map (question, venues, people only) and grow it later. In the React trial, round 0's two searchers took about 2 minutes, and the result was almost the same as adding the standard places directly
-   - **A field where you have no idea where to look**: run only "1. Mapping (round 0)" above to build the venues, then watch
-2. **Add places to watch.** From "Venues" and "People" in map.md, choose places that publish new posts and add them with `scripts/watch.py add <topic_dir> <url>`. You can add Qiita tags and users, Zenn topics and users, note users, Reddit, YouTube channels, blogs that publish RSS, and arXiv searches (`http://export.arxiv.org/api/query?search_query=...&sortBy=submittedDate&sortOrder=descending`). X and pixiv don't publish RSS and can't be added, so say in the reply that they can't be watched
-   - **Decide whether RSS exists with `watch.py add`, not with a searcher's word.** Searchers write RSS URLs from guesswork, and the react.dev feed a searcher said didn't exist could in fact be fetched. Conversely, check a searcher's claim that "it stopped updating" against the "latest item" from check
-3. **Pull new posts.** `scripts/watch.py check <topic_dir>` lists what is new since last time (for a first-time feed, the last 14 days; change with `--days`). Results are kept in `watch/<date-time>.md` (running it several times a day doesn't erase earlier results)
-   - **Places with nothing new still show their latest item, regardless of the window.** That way a big official announcement that fell outside the window is still visible
-   - **To widen the window and list again, use `--fresh`.** Posts outside the first window are also recorded as "seen", so this ignores the record and selects by the window alone
-4. **Hand over.** Show the list of new posts. For each: title, date, place, and **the opening line of the original** from the feed (as a `>` quote). **Don't add agent summaries or scores** (the original's opening line lets the user choose by the writer's own words). Save with `fetch.py` only what the user picks, or what looks relevant to a needed claim, and add it to the source table with its label
-   - **When there are many** (more than about 20), you may filter by kind to match the request ("personal blogs and overseas too" → fewer from Qiita and Zenn). Say that you filtered and where the full file is. Filtering only affects what is chosen; still no summaries
-   - Add the "latest item" for places with nothing new briefly at the end of the list
-5. If people, venues, or terms not on the map keep showing up in new posts, add them to "Next leads" in map.md and ask the user whether to add them to the watch list. This is the way back from watching to digging
+1. **Check for a map.** Without `~/research/<topic>/map.md` (say, a cold "what's new in React"), there are two ways in:
+   - **Quick (default)**: add the obvious places and start watching: the official blog and GitHub releases, the Qiita tag, the Zenn topic, well-known personal blogs. Keep the map minimal (question, venues, people) and grow it later. In the React trial, two round-0 searchers took about 2 minutes and found almost exactly the obvious places.
+   - **No idea where to look**: run step 1 (round 0) to find the venues, then watch.
+2. **Add places to watch.** From "Venues" and "People" in map.md, pick places that publish new posts and add each with `scripts/watch.py add <topic_dir> <url>`. Supported: Qiita tags and users, Zenn topics and users, note users, Reddit, YouTube channels, blogs with RSS, and arXiv searches (`http://export.arxiv.org/api/query?search_query=...&sortBy=submittedDate&sortOrder=descending`). X and pixiv publish no RSS; tell the user they can't be watched.
+   - **Let `watch.py add` decide whether a feed exists, not a searcher.** Searchers guess feed URLs, and one claimed react.dev had no feed when it did. Likewise, check "it stopped updating" against the latest item that check reports.
+3. **Pull new posts.** `scripts/watch.py check <topic_dir>` lists what's new since the last run (for a first-time feed, the last 14 days; change with `--days`). Each run is saved to `watch/<date-time>.md`, so repeat runs on the same day don't overwrite each other.
+   - **Places with nothing new still show their latest item**, whatever the window, so a big official release just outside the window stays visible.
+   - **To widen the window and re-list, use `--fresh`.** Posts outside the first window are recorded as seen too; `--fresh` ignores that record and selects by window alone.
+4. **Hand over.** Show the list: title, date, and place for each, plus the **original's opening line** from the feed as a `>` quote. **No agent summaries or scores**; the writer's own opening line is what the user chooses by. Save with `fetch.py` only what the user picks or what bears on a needed claim, and add it to the source table with its label.
+   - **For long lists** (more than about 20), you may filter by kind to suit the request ("personal blogs and overseas too" means fewer Qiita and Zenn posts). Say you filtered and where the full file is. Filtering changes the selection, not the content: still no summaries.
+   - Put the latest items from places with nothing new briefly at the end.
+5. If people, venues, or terms missing from the map keep appearing, add them to "Next leads" in map.md and ask whether to watch them too. This is the way back from watching to digging.
 
 ## map.md format
 
@@ -176,13 +177,13 @@ Make the "venues" on the map from a dig into the places to follow for new posts 
 # map: <topic>
 
 Question: <1–2 lines>
-Entry words: <the words used first>
+Entry words: <the words you started with>
 
 ## Needed claims
-- [ ] <claim 1> — <location in the source; [x] once sourced>
+- [ ] <claim 1> — <source location; [x] once sourced>
 
 ## Terms
-- <term> (<what it is called in Japanese>) — <URL where it appeared, or a file in sources/>
+- <term> (<Japanese name>) — <URL where it appeared, or a file in sources/>
 
 ## People
 - <name> (<affiliation>) — <best-known work>
@@ -191,48 +192,48 @@ Entry words: <the words used first>
 - <conference, journal, list, repository> — <URL>
 
 ## Sources (sources/)
-| Paper or material | File | Original URL | Where it came from (round, move) |
+| Paper or material | File | Original URL | Found via (round, move) |
 |---|---|---|---|
 
 ## Next leads
-- <something not followed yet> — <why it smells promising>
+- <not yet followed> — <why it looks promising>
 ```
 
-Don't change the order of the sections. Append to the end of each section (so tables don't scatter across rounds). The source table has one row per paper; if there are several files, such as a PDF and its .txt, or an abstract as .md, list them on the same row. Rows from searchers whose sources haven't been opened get (unverified).
+Keep the sections in this order and append to the end of each, so tables don't scatter across rounds. One row per work in the source table; put all its files (PDF and .txt, an abstract .md) on that row. Mark rows from searchers whose sources nobody has opened (unverified).
 
-In the "Paper or material" column of the source table, prefix one **kind label**. No scores. Which to trust is for the user to decide by reading the sources.
+Start each entry in the "Paper or material" column with one **kind label**. No scores; the user decides what to trust by reading.
 
 - [Paper] peer-reviewed or conference papers, arXiv preprints
-- [First-hand] a record by the person who did it (articles, videos, or READMEs describing the process of trying, making, or measuring it themselves)
-- [Observation] notes listing features of someone else's work or methods ("these illustrators paint like this")
-- [Roundup] articles that collect or restate others' findings ("I looked into it" posts, aggregator sites, explainers of explainers, encyclopedias, glossaries)
+- [First-hand] a record by the person who did it: an article, video, or README showing the process of trying, making, or measuring it themselves
+- [Observation] notes on features of someone else's work or methods ("these illustrators paint like this")
+- [Roundup] articles that collect or restate others' findings: "I looked into it" posts, aggregators, explainers of explainers, encyclopedias, glossaries
 - [Official] documents and announcements from the maker of the tool or product
 
-[First-hand] is primary information even when it's a personal post. For [Observation], if the person observed can be identified by name, add them to "Next leads" (their own record is the real primary source). [Roundup] is handy as an entry point, but use it for picking up things to follow (backward), and back claims with [First-hand] or [Paper] where possible.
+[First-hand] counts as primary even when it's a personal post. For [Observation], if the observed person is named, add them to "Next leads"; their own record is the real primary source. [Roundup] is a good entry point and a place to pick up backward leads, but back claims with [First-hand] or [Paper] where possible.
 
-After the label, add what you can tell.
+After the label, add whichever of these apply:
 
-- **has examples**: the writer's own work is shown. When the user wants to know "how skilled people do it", have them read the ones with examples first. Whether someone is skilled is for the user to decide by looking at the examples
-- **has measurements**: the writer's own measured numbers or comparisons are included (benchmarks, measured colours from photos, comparisons of settings)
-- **AI-assisted**: the writer says they had AI write it
-- **promotional**: an article or listing page that leads to something the writer sells. The content may still be [First-hand], but this lets the reader discount accordingly
-- **(unread)**: saved, but neither the agent nor any subagent has read it yet
-- **auto-captions**: taken from YouTube auto-captions. Mistranscriptions are common (「線画」 "line art" → 「洗画」), so keep quotes to what is legible, and have the user check against the video when it backs a claim
+- **has examples**: shows the writer's own work. When the user wants to know how skilled people do it, have them read these first; whether someone is skilled is for the user to judge from the examples
+- **has measurements**: includes the writer's own numbers or comparisons (benchmarks, colours measured from photos, settings compared)
+- **AI-assisted**: the writer says AI wrote it
+- **promotional**: leads to something the writer sells. The content may still be first-hand; the label lets readers discount it
+- **(unread)**: saved, but no agent or subagent has read it yet
+- **auto-captions**: from YouTube auto-captions, which are full of mistranscriptions (「線画」 "line art" → 「洗画」). Quote only what's legible, and have the user check the video before it backs a claim
 
 ## Tools
 
-The scripts run on the Python 3.10+ standard library alone. External commands are used when available (what happens without them is noted on each line).
+The scripts need only the Python 3.10+ standard library. External commands are used when present; each line says what happens without them.
 
-- `scripts/fetch.py <sources_dir> <name> <url>` — saves a source and checks that it is real. PDFs become .pdf and .txt (`pdftotext -layout`, poppler or Xpdf), HTML becomes .md, YouTube becomes captions as `[min:sec] text` in .md (`yt-dlp`; the video itself isn't downloaded). PDFs with no text layer are OCR'd with `pdftoppm` and `tesseract`. If a required command is missing, it prints `FAIL` with the missing command's name. HTML is turned into text with [ax](https://github.com/yusukebe/ax) when available, otherwise with the standard library (ax keeps headings and tables better). What it fetches is checked in a working folder, and only what passes is moved to sources_dir. 404s, walls, and too-short text are `FAIL` (if a source with the same name already exists, it is left in place). X doesn't serve its text, so it isn't fetched and is `FAIL` = keep the URL and the snippet the searcher picked up in map.md as (unverified)
-- Locations in videos are given by time instead of line number (`sources/x.md [12:34]`)
-- `scripts/report.py <topic_dir> [--check]` — checks the extracts in extracts.json against the sources and, if they match, builds report.html. `--check` only checks
-- `scripts/watch.py add|list|check` — watching. Pulls RSS / Atom and lists what is new since last time. It doesn't use search, so it costs nothing and results don't fluctuate. Feeds containing DOCTYPE or ENTITY are not read, for safety
-- `scripts/chain.py find|refs|cites|author` — follows citations and authors via OpenAlex. Free up to 1,000 calls a day, and with a prepaid balance of 0 it just stops when over the limit. **Don't register an API key or payment details.** Strong on older papers, weak on new papers and on authors with common names (author can grab a different person with the same name)
-- File names are `<author>-<year>-<short-title>`; for arXiv, `arxiv-<number>-<short-title>`
+- `scripts/fetch.py <sources_dir> <name> <url>` saves a source and checks it's real. PDFs become .pdf plus .txt (`pdftotext -layout`, from poppler or Xpdf); HTML becomes .md; YouTube becomes a captions .md as `[min:sec] text` (`yt-dlp`; no video download). PDFs without a text layer are OCR'd with `pdftoppm` and `tesseract`. If a needed command is missing, the `FAIL` names it. HTML goes through [ax](https://github.com/yusukebe/ax) when available, otherwise the standard library (ax keeps headings and tables better). Downloads are checked in a scratch folder, and only passing files move to sources_dir. 404s, walls, and too-short text are `FAIL`, and an existing source with the same name is left untouched. X serves no text, so it's never fetched and always `FAIL`: keep the URL and the searcher's snippet in map.md, marked (unverified)
+- Point into videos by time instead of line (`sources/x.md [12:34]`)
+- `scripts/report.py <topic_dir> [--check]` checks extracts.json against the sources and, if all match, writes report.html. `--check` only checks
+- `scripts/watch.py add|list|check` reads RSS / Atom and lists what's new since the last run. No search, so it's free and the results are stable. Feeds containing DOCTYPE or ENTITY are refused for safety
+- `scripts/chain.py find|refs|cites|author` follows citations and authors through OpenAlex. Free for 1,000 calls a day; with a prepaid balance of 0, it just stops at the limit. **Never register an API key or payment details.** Good on older papers, weak on new papers and common author names (author can pick up a namesake)
+- File names: `<author>-<year>-<short-title>`, or `arxiv-<number>-<short-title>` for arXiv
 
 ## Boundaries
 
-- At most two searchers at once (the design counts saturation from two searchers with different approaches; more would raise costs and make the overlap harder to read)
-- Don't send research involving confidential or personal data outside. Searchers search the web, so the content of the question goes out as search terms
-- Don't use ways around paywalls (pirate sites, etc.). Report them as not reached
-- Saved sources are copies for reading locally. Don't redistribute them
+- At most two searchers at once. Saturation is measured across two different approaches, and more searchers cost more and make overlap harder to read
+- Keep confidential or personal research out of it. Searchers query the web, so the question leaves the machine as search terms
+- No workarounds for paywalls (pirate sites and the like). Report those sources as not reached
+- Saved sources are local reading copies. Don't redistribute them
