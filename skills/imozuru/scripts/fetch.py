@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
-"""Save one source, and keep it in sources/ only after checking that it is real.
+"""Fetch one source and keep it in sources/ only if its content looks real.
 
-URLs from search results are often stale: in the 2026-10-09 trial, 5 of 11 were
-404s, login walls, or HTML posing as PDF. The extension or HTTP status can't tell
-these apart, so it judges by the start of the content and its length.
-
-It saves personal posts as well as papers. YouTube captions become .md in the form
-`[min:sec] text` (so locations can be given by time). X keeps its text behind a login wall,
-so it isn't fetched and FAIL is returned.
+Stale search URLs often serve 404s, login walls, or HTML posing as PDF with a 200,
+so judge by content and length, not by status or extension.
 
 Usage:
     fetch.py <sources_dir> <name> <url>
@@ -27,13 +22,11 @@ import urllib.request
 from html.parser import HTMLParser
 from pathlib import Path
 
-# Minimum characters to count as readable text. 404 pages and auth walls fit in a few hundred to a few thousand.
-# Higher for PDFs, which are mostly English papers. Lower for HTML, to let short Japanese articles through
-# (in the continent-painting trial, a real 2,904-character article was dropped by a 3,000 floor).
+# Error pages and walls fit in a few thousand characters. HTML gets a lower floor so short
+# Japanese articles pass (a real one was 2,904 characters).
 MIN_TEXT_CHARS = 3000
 MIN_HTML_CHARS = 1000
 MAX_BYTES = 40_000_000
-# Phrases that show a wall was hit instead of the text. Matched in lowercase.
 WALL_PATTERNS = (
     "404 not found",
     "page not found",
@@ -48,12 +41,7 @@ WALL_PATTERNS = (
 
 
 class _Redirect308(urllib.request.HTTPRedirectHandler):
-    """Follow 308 redirects on Python 3.10 too.
-
-    In 3.10, HTTPRedirectHandler has no http_error_308, and redirect_request rejects 308
-    (both were added in 3.11). 308, like 307, means "same method, different URL",
-    so treat it as 307. Behaviour on 3.11+ is unchanged (openhands.dev and others return 308, #3).
-    """
+    """Follow 308 redirects on Python 3.10, which only learned them in 3.11 (#3)."""
 
     http_error_308 = urllib.request.HTTPRedirectHandler.http_error_302
 
@@ -65,39 +53,33 @@ _OPENER = urllib.request.build_opener(_Redirect308)
 
 
 def download(url: str) -> tuple[bytes, str]:
-    """Fetch the URL and return the body and Content-Type."""
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 imozuru"})
     with _OPENER.open(req, timeout=90) as res:
         return res.read(MAX_BYTES), res.headers.get("Content-Type", "")
 
 
-# Many pages that declare Shift_JIS actually contain Windows extensions (①, 髙, etc.), so read them as cp932, its superset
+# Pages declaring Shift_JIS often use Windows extensions (①, 髙), so read them as cp932
 _CHARSET_ALIASES = {"shift_jis": "cp932", "shift-jis": "cp932", "sjis": "cp932", "x-sjis": "cp932",
                     "windows-31j": "cp932", "ms_kanji": "cp932"}
 
 
 def _declared_charsets(body: bytes, ctype: str) -> list[str]:
-    """Return the charsets declared by Content-Type and the HTML meta, in that order."""
     found = re.findall(r"charset\s*=\s*[\"']?([\w.:-]+)", ctype or "", re.I)
-    # meta must come at the top of the file (within the first 1024 bytes per the HTML spec). Look up to 4096 for margin
     found += re.findall(rb"<meta[^>]*charset\s*=\s*[\"']?([\w.:-]+)", body[:4096], re.I)
     names = [(n.decode("ascii", "ignore") if isinstance(n, bytes) else n).lower() for n in found]
     return [_CHARSET_ALIASES.get(n, n) for n in names]
 
 
 def decode_text(body: bytes, ctype: str = "") -> str:
-    """Decode the body using the charset it was written in.
+    """Decode with the first charset that works: declared, UTF-8, then the Japanese ones.
 
-    It used to always read UTF-8, so Shift_JIS Japanese articles turned into rows of U+FFFD and the content was lost
-    (found in pju-hoge's fork, 2026-10-15). Declarations can lie, so try the declared charset → UTF-8 →
-    the usual Japanese ones, in that order, for "decodes without garbling", and use the first that passes.
-    If none passes, take the one with the fewest replacement characters.
+    Declarations can lie. If nothing decodes cleanly, take the result with the fewest U+FFFD.
     """
     candidates = []
     for name in [*_declared_charsets(body, ctype), "utf-8", "cp932", "euc_jp"]:
         try:
             codec = codecs.lookup(name).name
-        except LookupError:  # skip unknown declarations (x-user-defined, etc.)
+        except LookupError:
             continue
         if codec not in candidates:
             candidates.append(codec)
@@ -110,16 +92,11 @@ def decode_text(body: bytes, ctype: str = "") -> str:
 
 
 def missing(*commands: str) -> list[str]:
-    """Return the names of external commands not installed. Calling a missing one stops with FileNotFoundError."""
     return [c for c in commands if shutil.which(c) is None]
 
 
 def pdf_to_text(pdf: Path) -> str:
-    """Extract text with pdftotext, keeping the column layout. -layout lets line numbers point into the source.
-
-    Xpdf's pdftotext (bundled with Git for Windows) outputs Latin-1 by default,
-    so -enc UTF-8 sets the output encoding. poppler's pdftotext accepts the same flag (#3).
-    """
+    """-enc UTF-8 because Xpdf's pdftotext (in Git for Windows) defaults to Latin-1 (#3)."""
     if missing("pdftotext"):
         return ""
     out = pdf.with_suffix(".txt")
@@ -129,13 +106,7 @@ def pdf_to_text(pdf: Path) -> str:
 
 
 def ocr_pdf(pdf: Path) -> str:
-    """OCR a PDF with no text layer (old papers that are only scanned images) with the local tesseract.
-
-    The Spencer et al. 1995 PDF downloaded fine, but pdftotext returned a single character (2026-10-10).
-    English only (the only language data installed is eng). Each page is rendered to a 200dpi image and read.
-    OCR errors remain, so the .txt starts with a note that it is OCR, letting readers check against the original.
-    Without pdftoppm or tesseract, it does nothing and returns empty (the caller names the missing command in FAIL).
-    """
+    """OCR a scanned PDF that has no text layer. English only."""
     if missing("pdftoppm", "tesseract"):
         return ""
     tmp = pdf.parent / f".{pdf.stem}-ocr"
@@ -160,11 +131,9 @@ HAS_AX = shutil.which("ax") is not None
 
 
 class _TextExtractor(HTMLParser):
-    """Extract the text from HTML when ax isn't available.
+    """Fallback HTML-to-text when ax is missing.
 
-    It can't pick out the main text as well as ax. If there is a <main> or <article> with enough content, only that is used.
-    On pages without one, navigation and footer text gets mixed in, but it is enough to point into the source by line number.
-    Links are leads to follow backward, so they are kept as `[text](URL)`.
+    Prefers <main>/<article> when it has enough text. Keeps links as `[text](URL)` for backward chaining.
     """
 
     FOCUS = {"main", "article"}
@@ -231,19 +200,13 @@ class _TextExtractor(HTMLParser):
 
     def text(self) -> str:
         focused = "".join(self.focus_parts)
-        # If the <main> is thin (just the page shell), fall back to the whole page
         raw = focused if len(focused.strip()) >= MIN_HTML_CHARS else "".join(self.parts)
         lines = (" ".join(line.split()) for line in raw.splitlines())
         return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip() + "\n"
 
 
 def html_to_md(url: str, out: Path, body: bytes | None = None, ctype: str = "") -> str:
-    """Turn the text into markdown. No summarising.
-
-    Uses ax if available (--all for the full text). Otherwise extracts the text with the standard library.
-    If body is given, it is used instead of fetching again (avoids a double fetch when ax is missing).
-    ctype is body's Content-Type, used to read the declared charset.
-    """
+    """Convert a page to markdown with ax, or with _TextExtractor reusing body if given."""
     if HAS_AX:
         res = subprocess.run(["ax", url, "--md", "--all"], capture_output=True,
                              encoding="utf-8", errors="replace")
@@ -252,7 +215,7 @@ def html_to_md(url: str, out: Path, body: bytes | None = None, ctype: str = "") 
         if body is None:
             body, ctype = download(url)
         if body[:5] == b"%PDF-":
-            # The redirect target was a PDF. The caller notices "%PDF" and refetches it as a PDF
+            # Redirected to a PDF; the caller refetches it as one
             text = "%PDF"
         else:
             parser = _TextExtractor(url)
@@ -263,38 +226,28 @@ def html_to_md(url: str, out: Path, body: bytes | None = None, ctype: str = "") 
 
 
 def ax_save(url: str, out: Path) -> bool:
-    """Save the body to a file as-is. True if saved.
-
-    HAL (hal.inria.fr) returns HTML to urllib but the redirected PDF to ax (2026-10-11).
-    html_to_md then writes the PDF's bytes into the .md as text, so the whole thing is refetched here.
-    Without ax, it refetches with urllib.
-    """
+    """Save the raw body. Needed where ax gets a PDF but urllib got HTML (HAL)."""
     if HAS_AX:
         subprocess.run(["ax", url, "-o", str(out)], capture_output=True)
     else:
         try:
             out.write_bytes(download(url)[0])
-        except Exception:  # if it can't be fetched, the caller reports FAIL
+        except Exception:
             return False
     return out.exists() and out.stat().st_size > 0
 
 
 YOUTUBE = re.compile(r"(youtube\.com/(watch|shorts|live)|youtu\.be/)")
 X_POST = re.compile(r"^https?://(www\.)?(x|twitter)\.com/")
-# Captions for a video of a few minutes may not reach 1,000 characters, so use a lower floor than for papers.
 MIN_TRANSCRIPT_CHARS = 300
 
 
 def youtube_to_md(url: str, out: Path) -> str:
-    """Download only the captions with yt-dlp (not the video) and turn them into timestamped text.
+    """Save captions (not the video) as `[min:sec] text` lines.
 
-    Manual captions are preferred, auto-captions otherwise. Japanese, then English. Auto-captions repeat
-    the same line into the next segment, so a line identical to the previous one is dropped.
-
-    Auto-captions have many mistranscriptions (in the continent-painting trial, 「線画」 "line art" became 「洗画」). Which kind
-    was used is kept in the header, so the reader knows whether to check quotes against the video. Manual and auto
-    captions come out under the same file name, so fetch manual only first, and refetch auto only when there are none.
-    --encoding fixes the title output to UTF-8. Piped output on Windows is cp932 unless set.
+    Manual captions first, auto only if there are none: both use the same file name, and the
+    header records which kind, since auto-captions need checking against the video.
+    Auto-captions repeat lines across segments, so consecutive duplicates are dropped.
     """
     tmp = out.parent / f".{out.stem}-subs"
     tmp.mkdir(exist_ok=True)
@@ -346,7 +299,6 @@ def first_line(text: str) -> str:
 
 
 def save_verified(saved: Path, kept: Path, destination: Path) -> Path:
-    """Move only files that passed the checks to the destination, within the same filesystem."""
     if saved != kept:
         saved.replace(destination / saved.name)
     target = destination / kept.name
@@ -355,7 +307,7 @@ def save_verified(saved: Path, kept: Path, destination: Path) -> Path:
 
 
 def valid_source_name(name: str) -> bool:
-    """A source name must be a single file name, not a path."""
+    """A plain file name: no path parts, control characters, or Windows device names."""
     device = name.split(".", 1)[0].rstrip(" ").upper()
     return (bool(name.strip(" .")) and name == name.rstrip(" .")
             and not any(c in name for c in "/\\:")
@@ -365,7 +317,7 @@ def valid_source_name(name: str) -> bool:
 
 
 def fetch_source(sources: Path, name: str, url: str, destination: Path) -> int:
-    """sources is a temporary folder for this fetch only. Saved sources are not touched while fetching, converting, and checking."""
+    """Work in the scratch folder `sources`; move to `destination` only after the checks pass."""
     if not valid_source_name(name):
         print(f"FAIL\t{name!r}\tthe source name must be a single file name")
         return 1
@@ -389,13 +341,12 @@ def fetch_source(sources: Path, name: str, url: str, destination: Path) -> int:
 
     try:
         body, ctype = download(url)
-    except Exception as e:  # an HTTP error and a connection failure are the same "can't fetch" to the caller
+    except Exception as e:
         print(f"FAIL\t{name}\t{type(e).__name__}: {e}")
         return 1
 
     if not body.strip():
-        # Some servers return an empty 200/202 (Cornell's paper repository, 2026-10-10).
-        # Usually bot protection that only serves browsers = a candidate for the user to open in their browser
+        # Usually bot protection that only serves real browsers
         print(f"FAIL\t{name}\tempty response (possibly bot protection; it may open in a browser)")
         return 1
     if body[:5] == b"%PDF-":
@@ -404,12 +355,9 @@ def fetch_source(sources: Path, name: str, url: str, destination: Path) -> int:
         text = pdf_to_text(saved)
         kept = saved.with_suffix(".txt")
         if len(text.strip()) < 200 and not re.search(r"arxiv\.org", url):
-            text = ocr_pdf(saved)  # PDF with no text layer. arXiv switches to the HTML version below
+            text = ocr_pdf(saved)  # arXiv falls back to HTML below instead
     elif ctype.startswith(("text/plain", "text/markdown", "application/json", "text/csv")):
-        # GitHub READMEs and data (raw.githubusercontent.com) come in this form
-        # (FAILed on Sanzo Wada's colour-combination data, 2026-10-10). Keep the content as-is.
-        # Check this before the HTML test. Markdown starting with `<!-- AUTO GENERATED -->` was
-        # taken for HTML and sent to ax, and every line break vanished (chrome-devtools-mcp's tool-reference, 2026-10-11).
+        # Before the HTML check: markdown starting with an HTML comment would otherwise go to ax and lose its line breaks
         ext = ".json" if "json" in ctype else ".csv" if "csv" in ctype else ".md"
         kept = saved = sources / f"{name}{ext}"
         text = decode_text(body, ctype)
@@ -418,7 +366,7 @@ def fetch_source(sources: Path, name: str, url: str, destination: Path) -> int:
         kept = sources / f"{name}.md"
         text = html_to_md(url, kept, body, ctype)
         saved = kept
-        # It looked like HTML, but ax followed the redirect and got the PDF itself (HAL). Refetch as a PDF
+        # ax followed a redirect to the PDF itself (HAL)
         if text.lstrip().startswith("%PDF"):
             kept.unlink(missing_ok=True)
             saved = sources / f"{name}.pdf"
@@ -435,8 +383,7 @@ def fetch_source(sources: Path, name: str, url: str, destination: Path) -> int:
         print(f"FAIL\t{name}\tunsupported type: {ctype or 'unknown'}")
         return 1
 
-    # pdftotext sometimes gets 0 characters from arXiv PDFs (COLE and Accordion in the
-    # 2026-10-09 trial). The HTML version of the same paper worked, so switch only when the text is short.
+    # pdftotext sometimes gets nothing from arXiv PDFs; the HTML version works
     arxiv_id = re.search(r"arxiv\.org/(?:pdf|abs)/(\d{4}\.\d{4,5}(?:v\d+)?)", url)
     if arxiv_id and len(text) < MIN_TEXT_CHARS:
         for p in (saved, kept):
@@ -451,7 +398,6 @@ def fetch_source(sources: Path, name: str, url: str, destination: Path) -> int:
         for p in (saved, kept):
             p.unlink(missing_ok=True)
         reason = f"hit a wall ({wall})" if wall else f"text too short ({len(text)} characters)"
-        # If a command needed to extract PDF text is missing, that is usually why it is short
         lacking = missing("pdftotext", "pdftoppm", "tesseract") if saved.suffix == ".pdf" else []
         if lacking:
             reason += f"; missing {', '.join(lacking)}"
@@ -472,13 +418,12 @@ def main() -> int:
         print(f"FAIL\t{name!r}\tthe source name must be a single file name")
         return 1
     sources.mkdir(parents=True, exist_ok=True)
-    # Conversion and FAIL cleanup happen only in the temporary folder. A same-named source is not overwritten before the checks.
-    # It is created inside the destination, so the replace on success doesn't cross filesystems.
+    # Inside the destination, so the final move stays on one filesystem
     with tempfile.TemporaryDirectory(prefix=".imozuru-fetch-", dir=sources) as tmp:
         return fetch_source(Path(tmp), name, url, sources)
 
 
 if __name__ == "__main__":
-    # It prints the first line of the text, so don't crash on characters the terminal encoding lacks (à in cp932, etc.)
+    # Don't crash printing characters the console encoding lacks (e.g. cp932)
     sys.stdout.reconfigure(errors="replace")
     sys.exit(main())

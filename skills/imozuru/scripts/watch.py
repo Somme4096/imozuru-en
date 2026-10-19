@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Watch the "venues" on the map and list what has appeared since last time (Ellis's monitoring).
-
-Pulls RSS / Atom instead of searching. Search results fluctuate and cost money, but a feed
-returns "what is new at that place" as-is. Instead of searching the same Qiita, Zenn, and X every time,
-this is a tool for watching the places a dig turned up.
-
-New posts get no summary. Instead, the opening line of the original from the feed is shown as-is
-(only a cue for choosing, with no agent wording in between).
+"""List new posts from the map's venues via RSS / Atom, each with its own opening line.
 
 Usage:
     watch.py add   <topic_dir> <url> [name]  … add a place to watch (finds the RSS automatically)
@@ -36,18 +29,13 @@ from pathlib import Path
 
 UA = {"User-Agent": "Mozilla/5.0 imozuru-watch"}
 ATOM = "{http://www.w3.org/2005/Atom}"
-# Length of the opening line. Enough to choose by, short enough not to stand in for a summary.
 HEAD_CHARS = 120
-# How many seen URLs to keep per feed. Feeds return only a few dozen items, newest first,
-# so this many is enough to never mistake "seen before" for new.
+# Feeds return a few dozen items, so this is plenty
 SEEN_LIMIT = 500
 
 
 class _Redirect308(urllib.request.HTTPRedirectHandler):
-    """Follow 308 redirects on Python 3.10 too (3.10 doesn't handle 308).
-
-    Same as in fetch.py. Run with -I, the script's folder isn't on the import path, so this keeps its own copy.
-    """
+    """Copy of fetch.py's: scripts run with -I can't import each other."""
 
     http_error_308 = urllib.request.HTTPRedirectHandler.http_error_302
 
@@ -65,7 +53,6 @@ def fetch(url: str) -> tuple[bytes, str]:
 
 
 def known_feed(url: str) -> tuple[str, str] | None:
-    """Places whose feed can be told from the shape of the URL alone. Returns the kind and the feed URL."""
     rules = [
         (r"^https?://qiita\.com/tags/([^/?#]+)", "qiita-tag", "https://qiita.com/tags/{0}/feed"),
         (r"^https?://zenn\.dev/topics/([^/?#]+)", "zenn-topic", "https://zenn.dev/topics/{0}/feed"),
@@ -84,11 +71,7 @@ def known_feed(url: str) -> tuple[str, str] | None:
 
 
 def discover(url: str) -> tuple[str, str]:
-    """Find the feed from the page's <link rel="alternate" type="application/rss+xml">.
-
-    Personal blogs, Hatena, WordPress, and YouTube channel pages have one.
-    If the URL itself is a feed, use it as-is.
-    """
+    """Return (kind, feed URL) from a known URL pattern, the URL itself, or the page's <link rel=alternate>."""
     hit = known_feed(url)
     if hit:
         return hit
@@ -120,25 +103,21 @@ def parse_date(s: str | None) -> dt.datetime | None:
         return None
     s = s.strip()
     try:
-        d = email.utils.parsedate_to_datetime(s)  # RSS 2.0 format
+        d = email.utils.parsedate_to_datetime(s)
     except (TypeError, ValueError):
         try:
-            d = dt.datetime.fromisoformat(s.replace("Z", "+00:00"))  # Atom format
+            d = dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
         except ValueError:
             return None
     return d if d.tzinfo else d.replace(tzinfo=dt.timezone.utc)
 
 
 def items(feed_bytes: bytes) -> list[dict]:
-    """Normalise RSS 2.0 and Atom items into title, URL, date, and opening line.
+    """Parse RSS 2.0 and Atom items.
 
-    Feeds come from other people's servers. XML containing DOCTYPE or ENTITY can be used to load
-    external entities or expand nested ones (billion laughs), so it is rejected unread.
-    defusedxml is the usual answer, but it isn't installed (adding a dependency needs sign-off).
-    Ordinary RSS / Atom doesn't use DOCTYPE, so rejecting it rarely costs anything.
+    Rejects DOCTYPE/ENTITY (XXE, billion laughs) without needing defusedxml. Only the prolog is
+    checked, since CDATA bodies may legitimately contain "<!DOCTYPE html>".
     """
-    # Declarations can only come before the root element. Look only before the root, so a body
-    # (an HTML article wrapped in CDATA) containing "<!DOCTYPE html>" isn't rejected.
     root_at = re.search(rb"<(rss|feed|rdf:RDF)\b", feed_bytes)
     prolog = feed_bytes[: root_at.start()] if root_at else feed_bytes
     if re.search(rb"<!(DOCTYPE|ENTITY)", prolog, re.I):
@@ -178,11 +157,10 @@ def load_watch(topic: Path) -> list[list[str]]:
 
 
 def cmd_add(topic: Path, url: str, name: str | None) -> int:
-    # Report a failure in one line instead of raising, so the next ones can still be added
-    # (Reddit returned 429 and it stopped with a traceback, 2026-10-10 trial).
+    # One-line errors, not tracebacks, so a batch of adds keeps going
     try:
         kind, feed = discover(url)
-        found = items(fetch(feed)[0])  # don't add a feed that can't be read
+        found = items(fetch(feed)[0])
     except SystemExit as e:
         print(f"Couldn't add: {e}")
         return 1
@@ -201,7 +179,6 @@ def cmd_add(topic: Path, url: str, name: str | None) -> int:
     elif kind == "feed" and found:
         label = found[0]["title"][:30]
     else:
-        # The last segment alone gives nothing but "blog" and "releases", so name it by domain and path
         label = re.sub(r"^https?://(www\.)?", "", url).rstrip("/")[:40]
     topic.mkdir(parents=True, exist_ok=True)
     p = topic / "watch.tsv"
@@ -214,10 +191,9 @@ def cmd_add(topic: Path, url: str, name: str | None) -> int:
 
 
 def cmd_check(topic: Path, days: int, fresh: bool) -> None:
-    """List new posts. With fresh, ignore the seen record and select by the window (days) alone.
+    """List posts not seen before; a first-time feed (or fresh) only shows the last `days`.
 
-    Posts outside the first window are also recorded as "seen", so the record gets in the way
-    when widening the window to list again (after 14 days, 30 days couldn't be reviewed, 2026-10-10 trial).
+    Posts outside the first window are marked seen too, hence `fresh` for re-listing with a wider window.
     """
     rows = load_watch(topic)
     if not rows:
@@ -232,7 +208,7 @@ def cmd_check(topic: Path, days: int, fresh: bool) -> None:
     for kind, label, feed, *_ in rows:
         try:
             got = items(fetch(feed)[0])
-        except Exception as e:  # if one feed fails, still check the others
+        except Exception as e:
             lines += [f"## {label} ({kind})", f"- Couldn't fetch: {type(e).__name__}: {e}", ""]
             continue
         seen = set() if fresh else set(state.get(feed, []))
@@ -242,8 +218,7 @@ def cmd_check(topic: Path, days: int, fresh: bool) -> None:
         new.sort(key=lambda i: i["date"] or now, reverse=True)
         state[feed] = ([i["link"] for i in got] + list(set(state.get(feed, [])) - {i["link"] for i in got}))[:SEEN_LIMIT]
         if not new:
-            # Even with nothing new, show the feed's latest item in one line, regardless of the window. This keeps
-            # the latest official news from dropping out of sight past the window (React 19.3 was missed at 31 days old).
+            # Still show the latest item, so a release just outside the window isn't missed
             dated = [i for i in got if i["date"]]
             if dated:
                 last = max(dated, key=lambda i: i["date"])
@@ -264,10 +239,9 @@ def cmd_check(topic: Path, days: int, fresh: bool) -> None:
     if quiet:
         lines += ["## Places with nothing new (latest item, regardless of the window)", *quiet, ""]
     state_p.write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
-    # Include seconds. With the date alone, the second run of the day overwrote the first (2026-10-10 trial).
     out = topic / "watch" / f"{now.astimezone():%Y-%m-%d-%H%M%S}.md"
     n = 2
-    while out.exists():  # don't erase an earlier result even when run again within the same second
+    while out.exists():
         out = out.with_name(f"{now.astimezone():%Y-%m-%d-%H%M%S}-{n}.md")
         n += 1
     out.parent.mkdir(exist_ok=True)
@@ -304,6 +278,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    # It prints post titles and opening lines, so don't crash on characters the terminal encoding lacks (à in cp932, etc.)
+    # Don't crash printing characters the console encoding lacks (e.g. cp932)
     sys.stdout.reconfigure(errors="replace")
     sys.exit(main())

@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
-"""Follow a paper's citations forward and backward (OpenAlex).
+"""Follow a paper's citations backward and forward, or an author's works, via OpenAlex.
 
-Does Bates 1989's footnote chasing (backward) and citation searching (forward) with a tool.
-Following citations gets you to the next paper even without knowing the field's words (Bates 1989 L301-302).
-
-OpenAlex is free up to 1,000 calls a day (x-ratelimit-limit-usd 0.1). With a prepaid balance
-of 0, going over just stops; nothing is charged. Don't register an API key or payment details.
+Free for 1,000 calls a day; over the limit it just stops. No API key needed.
 
 Usage:
     chain.py find  <DOI or title>          … identify a paper and print its ID (5 candidates for a title)
@@ -34,14 +30,10 @@ def get(path: str, **params) -> dict:
 
 
 def search_title(key: str) -> list[dict]:
-    """Search titles only and return 5 results, most cited first.
+    """Top 5 title matches, most cited first.
 
-    Full-text search (search=) put explainer articles and duplicate records on top, and Kuhlthau 1991
-    itself didn't make the top 5. Restricting to titles and sorting by citations put it first.
-    Mixing author names into the title throws it off, so pass only the title's words.
-
-    The registered title sometimes lacks the subtitle (Marchionini 2006 is just "Exploratory search").
-    All the words then give 0 results, so on 0 results it retries with the first 3 words.
+    Full-text search ranks explainers above the paper itself, so search titles only.
+    Registered titles may lack the subtitle, so on no hits retry with the first 3 words.
     """
     words = key.replace(",", " ").replace(":", " ").split()
     for terms in (words, words[:3]):
@@ -53,7 +45,7 @@ def search_title(key: str) -> list[dict]:
 
 
 def resolve(key: str) -> dict:
-    """Look up one paper from a DOI, OpenAlex ID, or title. For a title, the most cited match."""
+    """Resolve a DOI, OpenAlex ID, or title (most cited match) to one work."""
     if key.startswith("W") or "openalex.org/" in key:
         return get(f"/works/{key.rsplit('/', 1)[-1]}", select=FIELDS)
     if key.startswith("10.") or "doi.org/" in key:
@@ -86,7 +78,6 @@ def main() -> int:
     cmd, key = args[0], " ".join(args[1:])
 
     if cmd == "find":
-        # For a title, show every candidate, so the reader can check which one is the paper itself.
         hits = [resolve(key)] if key.startswith(("W", "10.")) or "/" in key else search_title(key)
         if not hits:
             print(f"No candidates: {key} (try the DOI, or fewer title words)")

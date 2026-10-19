@@ -1,13 +1,7 @@
 #!/usr/bin/env python3
-"""Turn the extracts (extracts.json) into a page for reading (report.html), after checking them against the sources.
+"""Check extracts.json against the sources, then build report.html.
 
-Save 40 sources and, left as English PDFs and hour-long captions, they go unread.
-Yet if the agent summarises them, it is back to "premature closure". The middle ground is
-Ellis's extracting: for each claim, cut passages from the sources verbatim and lay them out.
-The agent writes only the headings, "not found", and translations.
-
-To keep paraphrases from slipping in, it checks by machine that each extract appears verbatim at the given lines of its source.
-If even one isn't found, it builds no HTML, prints which ones don't match, and stops.
+Every extract must appear verbatim at its given lines; if any doesn't, no HTML is built.
 
 Usage:
     report.py <topic_dir>         … <topic_dir>/extracts.json → <topic_dir>/report.html
@@ -27,18 +21,17 @@ import re
 import sys
 from pathlib import Path, PureWindowsPath
 
-# Lines to show before and after, so the reader can open the flow an extract sat in from within the page.
 CONTEXT_LINES = 6
 
 
 def norm(s: str) -> str:
-    """Normalise whitespace, line breaks, and bullet markers for matching. The characters themselves are left alone."""
+    """Collapse whitespace and bullet markers for matching."""
     s = re.sub(r"(?m)^\s*[-*]\s+", " ", s)
     return re.sub(r"\s+", " ", s).strip()
 
 
 def verify(src_dir: Path, q: dict) -> tuple[bool, list[str], int, int]:
-    """Whether the extract appears verbatim at the given lines of the source (with 2 lines of slack either side). Also returns the surrounding context."""
+    """Check the extract is at its lines (±2) in the source; also return the surrounding context."""
     relative = Path(q["file"])
     if relative.is_absolute() or PureWindowsPath(q["file"]).is_absolute() or ".." in relative.parts:
         return False, [], 0, 0
@@ -52,14 +45,12 @@ def verify(src_dir: Path, q: dict) -> tuple[bool, list[str], int, int]:
         return False, [], 0, 0
     if not path.is_relative_to(root) or not path.is_file():
         return False, [], 0, 0
-    # splitlines() also counts page breaks (\f) as line breaks, so line numbers drift from grep and sed. Split on newlines only
+    # Not splitlines(): it also splits on \f, so line numbers would disagree with grep
     lines = path.read_text(encoding="utf-8", errors="replace").split("\n")
     start = max(1, q["line"] - 2)
     end = min(len(lines), q.get("end", q["line"]) + 2)
     region = norm(" ".join(lines[start - 1:end]))
-    # In two-column PDFs the left and right columns mix onto one line, so a sentence spanning several lines can't be matched as-is
-    # (this happened with Yoshida 2008). If the extract is split with "…", each piece is matched in order.
-    # The splits stay on the page as "…", so the reader can see something was left out.
+    # Two-column PDFs interleave columns, so an extract may be split with "…" and its pieces matched in order
     pieces = [norm(p) for p in q["text"].split("…") if norm(p)]
     ok, pos = bool(pieces), 0
     for piece in pieces:
@@ -80,8 +71,7 @@ def esc(s: str) -> str:
 def quote_html(src_dir: Path, q: dict, ctx: list[str], c0: int) -> str:
     loc = f"{q['file']}:{q['line']}" + (f"-{q['end']}" if q.get("end") else "")
     hit = range(q["line"], q.get("end", q["line"]) + 1)
-    # Blank lines in markdown spread things out, so skip empty lines (line numbers stay, so positions can still be traced)
-    # span is display:block, so no newline between them (with one, the line spacing doubled)
+    # Spans are display:block, so no newlines between them
     ctx_html = "".join(
         f'<span class="{"hit" if c0 + i in hit else ""}"><b>{c0 + i}</b> {esc(t)}</span>'
         for i, t in enumerate(ctx) if t.strip())
@@ -179,7 +169,7 @@ def main() -> int:
     if data.get("unreached"):
         body.append("<h2>Not reached</h2><ul class=\"unreached\">"
                     + "".join(f"<li>{esc(u)}</li>" for u in data["unreached"]) + "</ul>")
-    # An absolute path would leak the local user name when the page is shared, so write it relative to the page
+    # Relative, so a shared page doesn't leak the local user name
     body.append(f'<footer>imozuru extracts. The sources are in {esc(src.name)}/ next to this page</footer>')
 
     page = f"""<!doctype html>
@@ -196,6 +186,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    # It prints the start of extracts, so don't crash on characters the terminal encoding lacks (à in cp932, etc.)
+    # Don't crash printing characters the console encoding lacks (e.g. cp932)
     sys.stdout.reconfigure(errors="replace")
     sys.exit(main())
