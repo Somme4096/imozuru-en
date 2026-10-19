@@ -1,238 +1,238 @@
 ---
 name: imozuru
 description: |
-  知らない分野にキャッチアップするとき、汎用的な言葉から界隈の用語・中心の人・場（学会・雑誌・個人ブログ・動画・リポジトリ・一覧）を特定し、
-  引用・リンク・著者を芋づる式にたどって、当たりの原文（論文も個人の記事や動画の字幕も）を要約せずそのまま ~/research/<話題>/sources/ に落とす。
-  周ごとに地図（map.md）を育て、要る主張の全部に原文が付くか飽和したら止める。
-  見張りのモードでは、地図の場（Qiita・Zenn のタグ、note、YouTube、ブログ、arXiv）の新着を RSS で引いて原文の冒頭つきで並べる。
-  以下で使用:「芋づる式に調べて」「この分野をキャッチアップしたい」「界隈の用語と人から掘って」
-  「論文とか先行研究を漁って」「既存の技術を真似したいから元ネタを探して」「上手い人のやり方を集めて」「原文で落として」「/imozuru」
-  「〇〇って研究あるの？原典ほしい」「全然わからないから流れを掘って」「どういう界隈でどう呼ばれてるか知りたい」
-  「〇〇の新着見て」「今週の〇〇の記事まとめて」「キャッチアップ」「/imozuru watch」
-  "dig into this field", "find the canonical papers on X", "literature dive", "what's new in X this week"。
-  以下には使用しない: 答えが1つの事実の確認（年・有無だけ・仕様1つ → そのまま検索）／
-  手元の PC の中の資料を探す／読んだ資料の要約や解説を書く。
+  For catching up on an unfamiliar field. Starting from everyday words, it finds the field's terms, its central people, and its venues
+  (conferences, journals, personal blogs, videos, repositories, curated lists), then follows citations, links, and authors one lead at a time,
+  and saves the sources that hit (papers as well as personal posts and video captions) to ~/research/<topic>/sources/ as-is, without summarising.
+  It grows a map (map.md) each round and stops when every needed claim has a source, or when results saturate.
+  In watch mode, it pulls new posts from the venues on the map (Qiita and Zenn tags, note, YouTube, blogs, arXiv) via RSS and lists them with the opening line of each.
+  Use for: "dig into this field", "I want to catch up on this area", "start from the field's terms and people",
+  "find papers and prior work", "I want to copy an existing technique, find where it came from", "collect how skilled people do it", "save the originals", "/imozuru",
+  "is there research on X? I want the original", "I know nothing about this, dig up how it developed", "what is this called and who works on it",
+  "find the canonical papers on X", "literature dive", "show me what's new in X", "round up this week's posts on X", "catch up", "/imozuru watch".
+  Do not use for: checking a single fact (a year, whether something exists, one spec → just search);
+  finding documents on the local machine; writing a summary or explanation of material already read.
 ---
 
 # imozuru
 
-知らない分野を、言葉を知らないところから原文にたどりつくまで掘る。
-芯は2つ。**原文を要約せずに落とす**ことと、**止めどきを確信度ではなく証拠で決める**こと。
+Dig into an unfamiliar field, starting from not knowing its words and ending at the original sources.
+Two things are at the core: **save the sources without summarising them**, and **decide when to stop by evidence, not by confidence**.
 
-## なぜこの形か（先に読む）
+## Why it works this way (read first)
 
-- **要約しない理由**: 調べ始めの混乱した段階で詳しくまとめると、早すぎる閉じ（premature closure）を招いて過程を妨げる（Kuhlthau 1991）。エージェントが早い周で要約すると、エージェントの見方で閉じ、ユーザーが判断に使う細部が落ちる。このスキルは「自分の感覚と AI の調査結果がかみあわない」という経験から生まれた。判断するのは原文を読むユーザーで、エージェントは原文の場所を指すだけ
-- **決め打ちしない理由**: AI の検索は、方向がいくつもありうる段階で1つを選び、その後の検索が同じ道を強めて失敗する（Zhou ら 2026 HypoSearch）。迷ったら枝を分けて並べ、比べてから進む
-- **言葉が無いときの道**: 引用をたどる方法は、主題を言葉で言い表す問題を丸ごと避けられる（Bates 1989）。検索語が出てこないときは引用と著者でたどる
-- 理論と原文の場所は `references/theory.md`
+- **Why it does not summarise**: Summarising in detail during the confused early stage of a search invites premature closure and gets in the way of the process (Kuhlthau 1991). If the agent summarises in an early round, the search closes on the agent's view, and the details the user needs for their own judgement drop out. This skill came from the experience of "my own sense of things doesn't match what the AI found". The user, reading the sources, makes the judgement; the agent only points to where the sources are
+- **Why it does not commit to one direction**: When several directions are still possible, AI search picks one, and later searches reinforce that path until it fails (Zhou et al. 2026, HypoSearch). When unsure, split into branches, lay them side by side, and compare before moving on
+- **The route when there are no words**: Following citations sidesteps the whole problem of putting a subject into words (Bates 1989). When no search terms come to mind, follow citations and authors
+- The theory and where each source is: `references/theory.md`
 
-## 置き場
+## Where things go
 
-既定は `~/research/<話題>/`（話題は英小文字とハイフン。例 `search-methods`）。ユーザーが別の場所を言えばそこに置く。
+The default is `~/research/<topic>/` (topic in lowercase English with hyphens, e.g. `search-methods`). If the user names another place, use that.
 
 ```
-map.md      … 問い・要る主張・用語・人・場・原文の表・次の手がかり（書式は下）
-log.md      … 来た道。周ごとに、誰が何を探して何が出たか・判断とその理由。起動した検索役は、戻らなかったものも含めて1本ずつ書く（何を頼んだか・戻ったか・止めたか）
-sources/    … 原文。PDF とその .txt、HTML は .md。要約ファイルは置かない
-extracts.json … 抜き書き（止めたあとに書く・下の「抜き書きのページ」）
-report.html … 抜き書きのページ（report.py が作る）
-watch.tsv   … 見張る先（見張りのモードを使ったときだけ）
-watch/      … 見張りの結果。<日付>.md
+map.md        … question, needed claims, terms, people, venues, source table, next leads (format below)
+log.md        … the path taken. Per round: who searched for what, what turned up, decisions and why. Log every searcher launched, one by one, including those that never returned (what it was asked, whether it returned, whether it was stopped)
+sources/      … the sources. PDFs plus their .txt; HTML as .md. No summary files
+extracts.json … extracts (written after stopping; see "The extract page" below)
+report.html   … the extract page (built by report.py)
+watch.tsv     … what to watch (only when watch mode is used)
+watch/        … watch results, as <date>.md
 ```
 
-## 検索役のサブエージェント
+## Searcher subagents
 
-0周目と各周の探索は、**検索役のサブエージェント**に任せる（以下「検索役」）。広く掃く探索は途中で判断が要らないので、軽いモデル（Haiku など）で足りる。読み取りと Web 検索だけ使える定義があればそれを使う。サブエージェントを使えない環境では、エージェントが自分で同じ頼み方の中身を順に検索する。
+Round 0 and the search in each round are handed to **searcher subagents** ("searchers" below). Broad sweeping needs no judgement along the way, so a light model (Haiku or similar) is enough. If there is an agent definition limited to reading and web search, use it. Where subagents are unavailable, the agent runs the same requests itself, one after another.
 
-## 流れ
+## Flow
 
-### 0. 問いと「要る主張」を書く
+### 0. Write the question and the needed claims
 
-map.md を下の書式で作り、**問い**と、答えるのに要る**主張**を3〜6個並べる（例: 「この分野で〇〇をどう呼ぶか」「定番の手法は何か」「どこで失敗するか」）。主張は止めどきの物差しになる（HALT・Roh & Han 2026）。
+Create map.md in the format below, and list the **question** and the 3–6 **claims** needed to answer it (e.g. "what this field calls X", "what the standard methods are", "where they fail"). The claims are the yardstick for when to stop (HALT, Roh & Han 2026).
 
-主張は自分で甘く作れてしまう。試しでは5つ全部が「〜がある」で、1周で埋まって止まり、依頼の芯（「AI で生成した画像を」）が確かめられないまま残った。だから次を守る。
+It is easy to write claims that are too soft. In one trial all five were "there is ...", they filled up in a single round and the search stopped, and the core of the request ("images generated by AI") was never checked. So follow these rules.
 
-- **少なくとも1つは、依頼の言葉の条件をそのまま入れる**（例: 依頼が「AI で生成した画像を編集できるデータに」なら「AI 生成画像に当てた結果や事例がある」）
-- **「〜がある」だけで埋めない**。半分以上は「どれくらい効くか」「どこで失敗するか」「何が足りないか」のように、原文を読まないと答えられない形にする
-- **要る主張の1つ目は、いつも「この分野の知見はどこに集まっているか（場）」にする**。どこを当たるかを、固定の一覧ではなく調べて決めるため（下の「1. 地図づくり」）
-- **コツや定番のやり方を聞く問いでも、1つは「そのコツの元になった原典・研究はあるか」にする**。無ければ「探した範囲では無かった」と書く。チュートリアルだけで答えると、元にある研究に届かないまま「規則は無い」と結論しやすい（2026-10-12 の比較で、素の頼み方は3回とも「規則は無い／理論ではない」と結論した。原典を問いに入れずに掘った imozuru も Rood 1879 に届かなかった）
+- **At least one claim carries a condition from the request's own wording** (e.g. if the request is "turn AI-generated images into editable data", then "there are results or cases applied to AI-generated images")
+- **Don't fill them with "there is ..." alone.** At least half should take a form that can't be answered without reading a source, such as "how well does it work", "where does it fail", "what is missing"
+- **The first needed claim is always "where does this field's knowledge collect (its venues)?"** This way, where to look is decided by searching, not by a fixed list (see "1. Mapping" below)
+- **Even for questions about tips or standard practice, make one claim "is there an original source or study behind this tip?"** If there is none, write "none found in the range searched". Answering from tutorials alone tends to conclude "there are no rules" without reaching the research underneath (in a 2026-10-12 comparison, the plain request concluded "there are no rules / it isn't theory" all three times, and imozuru, digging without the original source in its question, also never reached Rood 1879)
 
-問いは途中で変わってよい（berrypicking）。変わったら map.md の問いと主張を書き直し、log.md に理由を書く。
+The question may change along the way (berrypicking). When it does, rewrite the question and claims in map.md and write the reason in log.md.
 
-### 1. 地図づくり（0周目）
+### 1. Mapping (round 0)
 
-検索役を**違う探し方で2本**並べる。既定は英語と日本語。片方で足りる分野なら「用語で検索」と「定番の総説と教科書を探す」に分ける。違う探し方の2本で同じものが出るほど、地図が埋まってきた印になる（capture-recapture の考え方・Kastner 2007）。
+Run **two searchers with different approaches** side by side. The default is English and Japanese. In fields where one language is enough, split into "search by terms" and "find the standard reviews and textbooks". The more two different approaches turn up the same things, the more the map is filling in (the capture–recapture idea, Kastner 2007).
 
-検索役への頼み方:
-- 返してほしいのは4つ＝**用語**（それが出た URL）・**人**（所属・代表作）・**場**（学会・雑誌・一覧・リポジトリ）・**定番の資料**（題名・著者・年・無料で読める URL）
-- 報告は「見つけた／探したが無い／探していない」の3つに分けてもらう。「探していない」がそのまま次の手がかりになる
-- **要約は頼まない**。名前と URL を正確に拾うことを優先させる
-- **ファイルを書かせない**。ダウンロードは親の仕事。試しで検索役が curl で一時ファイルを書いた
-- **場は一覧から選ばず、0周目で探させる**。「この分野の詳しい人はどこに書いているか」「定番の資料はどこで公開されているか」を検索役への問いとして渡し、挙がった場を map.md の「場」に足す。どの場から何件挙がったかを log.md に残す（分野ごとの場の偏りを記録に溜める）。論文と個人の発信のどちらに知恵があるかは分野しだいで、0周目では決めつけない。次の一覧は、場の見当がまったくつかないときの例にとどめる＝学会・雑誌・arXiv、個人ブログ、Qiita・Zenn・note、YouTube、GitHub、X、pixiv・FANBOX の講座、フォーラム。固定の一覧だけで当たると、日本語の技術記事に寄る（固定の一覧で当たると、作り手の癖に寄る）
-- 入口の言葉が分からない分野では、粒度の粗い順に当たらせる＝百科事典（英語版 Wikipedia の References）→ 専門事典 → 教科書・講義資料 → サーベイ論文 → 原著（横井 2017）。論文の無い分野なら、用語集・入門記事 → その分野で名前の挙がる人 → その人自身の実践の記録、の順
-- 日本語で入口の言葉が無い分野は英語で入る（「berrypicking ベイツ」は果物狩りの記事ばかりだった）
-- **検索の深さを切り替えられるなら、まず普通の検索で探させ、欲しい種類が0件のときだけ深い検索で引き直させる**。「薄い」は全体の件数ではなく種類で見る（記事は出るが動画が0件、日本語が0件など）。大陸塗りの試しでは普通の検索の8本がほぼ空振りで、深い検索の1本目で note・YouTube・ブログが一斉に出た。MIX の試しでは記事は出たが、普通の検索だと YouTube が0件だった。深い検索は費用が数倍なので、最初からは使わない
+How to brief the searchers:
+- Ask for four things back: **terms** (with the URL where each appeared), **people** (affiliation, best-known work), **venues** (conferences, journals, lists, repositories), and **standard materials** (title, author, year, a free-to-read URL)
+- Have them split the report into "found / searched but none / not searched". "Not searched" becomes the next leads as-is
+- **Don't ask for summaries.** Have them prioritise getting names and URLs exactly right
+- **Don't let them write files.** Downloading is the parent's job. In one trial a searcher wrote a temp file with curl
+- **Have them find the venues in round 0 rather than pick from a list.** Pass them questions like "where do the experts in this field write?" and "where are the standard materials published?", and add the venues that come up to "Venues" in map.md. Record in log.md how many results came from each venue (building up a record of how venues skew by field). Whether the know-how lives in papers or in personal posts depends on the field, so don't decide it in round 0. Use the following list only as examples when you have no idea at all where the venues are: conferences, journals, arXiv; personal blogs; Qiita, Zenn, note; YouTube; GitHub; X; tutorials on pixiv and FANBOX; forums. Searching from a fixed list alone skews toward Japanese tech articles (a fixed list skews toward its maker's habits)
+- In a field where you don't know the entry words, have them go from coarse to fine: encyclopedia (the References in English Wikipedia) → specialist encyclopedia → textbooks and lecture notes → survey papers → original papers (Yokoi 2017). In a field without papers: glossaries and intro articles → the people whose names come up in the field → those people's own records of their practice
+- In a field with no Japanese entry words, go in through English (searching "berrypicking ベイツ" returned nothing but fruit-picking articles)
+- **If search depth can be switched, have them search with normal search first, and redo it with deep search only when a wanted kind of result comes back empty.** Judge "thin" by kind, not by total count (articles turn up but zero videos, zero Japanese results, and so on). In the continent-painting trial, eight normal searches came back almost empty, and the first deep search turned up note, YouTube, and blogs all at once. In the MIX trial, articles turned up, but normal search found zero YouTube results. Deep search costs several times more, so don't start with it
 
-戻ったら、報告の中身を map.md の用語・人・場に足し、検索役の「探していない」を**次の手がかり**に移す。
+When they return, add the report's contents to the terms, people, and venues in map.md, and move the searchers' "not searched" items to **next leads**.
 
-検索役の報告はたいてい検索結果の抜粋がもとで、原文を開いていない（試しでは2本とも開いた回数0）。人の所属・「公開済み」・数字は外れていることがある。map.md に入れるときは末尾に **（未確認）** を付け、原文で確かめたら外す。
+Searcher reports are usually based on search-result snippets, not on opening the sources (in one trial, both searchers opened zero pages). People's affiliations, "published", and numbers may be wrong. When putting them in map.md, add **(unverified)** at the end, and remove it once checked against the source.
 
-### 2. たどる（各周）
+### 2. Follow (each round)
 
-次の手がかりから、匂いの強いもの（何度も名前が出る・総説や教科書・定番として引かれる・何人もが「この人の記事を見て」と挙げる）を選んでたどる。たどり方は6つ（Bates 1989・Ellis 1987）。論文の世界でも個人の発信の世界でも同じ動きで、たどる先が違うだけ:
+From the next leads, pick ones with a strong scent (names that come up again and again, reviews and textbooks, things cited as the standard, people several others point to with "see this person's post") and follow them. There are six ways to follow (Bates 1989, Ellis 1987). The moves are the same in the world of papers and the world of personal posts; only the targets differ:
 
-| 動き | 論文なら | 個人の発信なら | 道具 |
+| Move | For papers | For personal posts | Tool |
 |---|---|---|---|
-| 後ろへ | 参考文献 | 記事の中のリンク、「〇〇さんの記事を参考に」 | `chain.py refs`、手元の本文を grep |
-| 前へ | 被引用（多い順） | その記事を紹介・引用している記事や投稿、はてブ | `chain.py cites`、検索役 |
-| 著者で追う | 著者の他の論文 | その人のブログの過去記事、Zenn・Qiita・note の投稿一覧、YouTube のチャンネル | `chain.py author`、検索役 |
-| 場を通しで見る | 中心の学会・雑誌 | Qiita・Zenn のタグ、pixiv の講座タグ、Discord・Reddit、awesome リスト | 検索役 |
-| 近くを眺める | 同じ号・同じ一覧 | 関連記事、同じタグ、同じ人がまとめた再生リスト | 検索役 |
-| 言葉で引き直す | 地図に増えた用語で検索 | 同じ。界隈の俗称・略語でも引く | 検索役 |
+| Backward | References | Links inside the article, "based on so-and-so's post" | `chain.py refs`, grep the saved text |
+| Forward | Citing works (most cited first) | Articles and posts that introduce or quote it, Hatena Bookmark | `chain.py cites`, searchers |
+| By author | The author's other papers | Back posts on their blog, their post lists on Zenn, Qiita, note, their YouTube channel | `chain.py author`, searchers |
+| Scan a venue end to end | The central conferences and journals | Qiita and Zenn tags, pixiv tutorial tags, Discord, Reddit, awesome lists | Searchers |
+| Browse nearby | The same issue, the same list | Related posts, the same tag, playlists curated by the same person | Searchers |
+| Search again with new words | Search with the terms newly on the map | Same; also search slang and abbreviations used in the community | Searchers |
 
-**論文の無い分野ほど、知恵は個人の発信にある**（塗り方・MIX・ツールの使いこなしなど）。権威のある場所だけに絞らない。
+**The fewer papers a field has, the more its know-how lives in personal posts** (painting techniques, MIX, getting the most out of a tool, and so on). Don't narrow down to authoritative places only.
 
-- **論文は DOI で引く**。題名で引くと別の記録や解説記事を掴むことがあるので、`chain.py find` の候補を年と題で確かめてから使う
-- **出て1年ほどの論文は `chain.py` が0件を返す**。OpenAlex に引用の登録が追いついていない（試しでは出て1年以内の論文で refs も cites も0件）。0件は「無い」ではない。後ろへは、落とした本文の参考文献の節を grep する（試しではこれで目当ての論文が見つかった）。前へは、検索役に「<題名> を引いている論文」を探させる
-- **方向が2つ以上ありえるときは決め打ちしない**。検索役を2本、別の仮説で並べ、戻ってから比べる
-- **当たりは `fetch.py` で落とす**。`OK` が出たものだけ map.md の原文の表に足す。`FAIL` は理由と URL を log.md に残す（有料・404・ログインの壁）
-- **FAIL や有料で取れなかった定番は、届かなかったと書く前に別の置き場を探す**。著者や研究室のページ、その分野のまとめサイト、元になった技術報告、大学のリポジトリを当たる。2026-10-14 には、DTIC で 403 だった Mann & Thompson と Hovy の原典が、SFU の RST サイトに置いてあった。海賊版サイトは使わない
-- 落としたら、要る主張に関わるところを .txt / .md で grep して**行番号を確かめる**。map.md の主張の行に「どのファイルの何行目か」を書く。ここで書くのは原文の場所と短い引用で、まとめや結論は書かない
-- **行番号には短い引用（英語なら数語）を添える**。2段組の PDF は pdftotext で左右の段が1行に混ざり、行番号だけでは読み手が見つけられない。引用があれば grep で引ける
+- **Look papers up by DOI.** Looking up by title can grab a different record or an explainer article, so check `chain.py find` candidates by year and title before using them
+- **For papers about a year old, `chain.py` returns 0 results.** OpenAlex hasn't caught up on registering their citations (in a trial, refs and cites were both 0 for papers less than a year old). 0 does not mean "none". For backward, grep the references section of the saved text (in a trial, this found the target paper). For forward, have a searcher look for "papers citing <title>"
+- **When two or more directions are possible, don't commit to one.** Run two searchers on different hypotheses and compare when they return
+- **Save hits with `fetch.py`.** Only those that print `OK` go in the source table in map.md. For `FAIL`, record the reason and URL in log.md (paywall, 404, login wall)
+- **Before writing that a standard work failed or was paywalled, look for another copy.** Try the author's or lab's page, the field's roundup sites, the technical report it came from, and university repositories. On 2026-10-14, the Mann & Thompson and Hovy originals that returned 403 on DTIC were on SFU's RST site. Don't use pirate sites
+- After saving, grep the .txt / .md for the parts relevant to the needed claims and **check the line numbers**. On each claim's line in map.md, write "which file, which line". Write only the location in the source and a short quote here, not a summary or conclusion
+- **Add a short quote (a few words if English) to each line number.** In two-column PDFs, pdftotext mixes the left and right columns onto one line, so a reader can't find the spot from the line number alone. With a quote, they can grep for it
 
-### 3. 周の終わりの判断（親）
+### 3. End-of-round decision (parent)
 
-**起動した検索役が全部戻ってから判断する**。待たずに先へ進めた検索役は、その場で止める。
+**Decide only after every searcher you launched has returned.** Stop on the spot any searcher you moved on from without waiting for.
 
-**0周目は、検索役を並べて地図を作るまで**（原文はまだ落とさなくてよい）。**1周＝手がかりから原文を落とし、そこから少なくとも1回たどる（後ろへ・前へ・著者で追うのどれか）まで**。検索役を並べ直すかどうかは問わない。論文の無い分野では、落とした記事の中のリンクを後ろへたどれば1回と数える。検索役が空振りして親が自分で探した周も1周に数える（その周は飽和を数えない）。**空振り**＝検索役の挙げた中に、落として当たりだったページが1つも無いこと（検索結果の件数ではない。検索役はページを開かずに報告するので、当たりかは親が落として初めて分かる）。
+**Round 0 goes as far as running the searchers side by side and building the map** (no need to save sources yet). **One round = saving sources from the leads and following at least once from them (backward, forward, or by author).** Whether you relaunch searchers doesn't matter. In a field without papers, following the links in a saved article backward counts as once. A round in which the searchers came up empty and the parent searched on its own also counts as a round (saturation isn't counted for that round). **Came up empty** = none of the pages the searchers listed turned out to be a hit once saved (not the number of search results; searchers report without opening pages, so whether something is a hit is only known once the parent saves it).
 
-各周の終わりに、次のどれかなら止める。理由を log.md に書く。
+At the end of each round, stop if any of the following holds. Write the reason in log.md.
 
-- **要る主張の全部に原文の場所が付いた**（主張ごとに file:行＋短い引用）
-- **飽和した**: この周に検索役が挙げた人と資料のうち、7割以上がすでに map.md にあった。新しい用語もほとんど出ない。分母と分子を log.md に書く（例「挙がった14件中11件が既知」）。7割は試しで決めた目安で、まだ根拠は弱い
-  - **数えるのは、同じ問いを違う探し方で探した検索役だけ**（英語と日本語、用語検索と総説探し）。別の仮説を追わせた2本は、話題が違うので重なりが低く出るのが当たり前で、飽和の物差しにならない（試しで別の枝は 2/14）。仮説の枝ごとに、その枝の主張が埋まったかで見る
-  - **「既知」には親が自分で拾ったものも入れる**。検索役に既知の一覧を渡すときも同じ一覧を渡す（親の拾った分を入れ忘れ、分子が小さく出たことがある）
-- **4周やった**: 届いていない主張と、その理由（有料・見つからない）を書いて止める
-- **壁で止まった**: 残りの主張の原文が、どれもログインの壁（X・pixiv・小紅書・会員制のサイト）か有料の向こうにある。壁の手前で取れるものはもう無い。URL を並べて止め、ユーザーにブラウザで開いてもらう（下の「渡す」）
-  - **「一部だけ」の主張も、足りない部分の原文がどれも壁の向こうなら、壁で止まったと数える**。足りない部分を壁の手前でまだ探せるなら止めない
-  - **無料公開なのに出版社のボット対策（Cloudflare の確認画面・403）で取れないだけなら、止める前に、ユーザーにブラウザで開いてもらうよう頼む**。人のブラウザなら確認画面は自然に通る。ユーザーのブラウザを操作できる道具（DevTools をつなぐ MCP など）があるなら、ユーザーに確かめてから使ってよい。確認画面をすり抜ける細工はしない。「コピーを請求する」形や有料のものは壁のまま
-- **約束で打ち切った**: 依頼に時間・回数の上限があり、上の4つに届く前にそこへ着いた。どの物差しがどこまで進んだか（主張の何個に原文が付いたか・飽和の分子と分母）を書いて止める。物差しを満たしたふりはしない
+- **Every needed claim has a location in a source** (file:line plus a short quote for each claim)
+- **Saturated**: 70% or more of the people and materials the searchers listed this round are already in map.md, and almost no new terms turn up. Write the numerator and denominator in log.md (e.g. "11 of 14 listed were already known"). The 70% is a rule of thumb set in trials, and its basis is still weak
+  - **Count only searchers that searched the same question with different approaches** (English and Japanese, term search and review search). Two searchers chasing different hypotheses cover different topics, so low overlap is expected and says nothing about saturation (in a trial, a separate branch scored 2/14). For each hypothesis branch, judge by whether that branch's claims are filled
+  - **"Already known" includes what the parent found on its own.** When passing searchers the known list, pass the same list (once the parent's own finds were left out and the numerator came out too small)
+- **Four rounds done**: write down the claims not reached and why (paywall, not found), and stop
+- **Stopped at a wall**: the sources for the remaining claims are all behind login walls (X, pixiv, Xiaohongshu, members-only sites) or paywalls, and nothing more can be had this side of the wall. List the URLs, stop, and have the user open them in their browser ("Hand over" below)
+  - **A claim that is only "partial" also counts as stopped at a wall if the sources for the missing part are all behind walls.** If the missing part can still be searched for this side of the wall, don't stop
+  - **If something is free to read and only blocked by the publisher's bot protection (a Cloudflare challenge, a 403), ask the user to open it in their browser before stopping.** A person's browser passes the challenge naturally. If there is a tool that can drive the user's browser (an MCP that connects to DevTools, for example), you may use it after checking with the user. Don't use tricks to slip past the challenge. "Request a copy" forms and paid content stay walls
+- **Cut off by agreement**: the request had a time or count limit and you hit it before reaching any of the four above. Write how far each yardstick got (how many claims have sources, the saturation numerator and denominator) and stop. Don't pretend a yardstick was met
 
-**1周目が終わるまで止めない**。0周目で主張が全部埋まって見えても、当たりの論文から前へたどるか著者で追うのを1回はやってから判断する。早くやめて外す under-search は、AI の検索のもう1つの典型（Zhang ら 2026）。止めないときは、次の周にたどる手がかりを2〜4個選んで log.md に書いてから進む。
+**Don't stop before round 1 is done.** Even if every claim looks filled after round 0, follow forward or by author from a hit paper at least once before deciding. Under-search, quitting early and missing, is the other typical failure of AI search (Zhang et al. 2026). When not stopping, pick 2–4 leads to follow next round and write them in log.md before moving on.
 
-### 4. 渡す
+### 4. Hand over
 
-**返す前に、自分が起動した検索役や裏で走らせた処理が残っていないか確かめ、残っていれば止める**。止めたものは log.md に書く。2026-10-12 の試しでは、調べものを任せたエージェントが報告を返したあとも、中で起動したものが動き続けていた（何だったかは log.md に無く、分からなかった）。
+**Before returning, check whether any searchers you launched or processes you ran in the background are still running, and stop them if so.** Write what you stopped in log.md. In a 2026-10-12 trial, things launched inside an agent kept running after it had returned its report (what they were wasn't in log.md, so nobody knew).
 
-止めたら、ユーザーに次を返す。
+Once stopped, return the following to the user.
 
-1. **止めた理由**（上の5つのどれか）
-2. **主張ごとの原文の場所**（`sources/<file>` の何行目）。1主張1〜2行
-3. **届かなかったもの**（有料で取れない定番など）
-4. **抜き書きのページ（`report.html`・下の節）のパスを最初に示し**、ほかに一番読んでほしい原文を2〜4本選んで、パスと「どこを読むか」を1行ずつ添える
-5. **壁の向こうで大事そうなもの**は、URL と「なぜ大事そうか」を1行で並べる。ユーザーがログイン済みのブラウザで開いて読む。エージェントはアカウントを作らない・ログインしない
-6. 流れのほうで気づいた穴（道具の不具合・検索役のはみ出し）
-7. **ユーザーに「感覚と合った？」と一言だけ聞き、答えを `<話題>/log.md` の末尾に原文のまま残す**（言い換えない）。止めどきの7割や周の上限を変えるかは、この記録を何回分か並べて決める（記憶では決めない）
+1. **Why you stopped** (one of the five above)
+2. **Where the source is for each claim** (which line of `sources/<file>`). 1–2 lines per claim
+3. **What wasn't reached** (standard works behind paywalls, etc.)
+4. **First give the path to the extract page (`report.html`, see the section below)**, then pick 2–4 other sources you most want read, with the path and one line on "where to read" for each
+5. **Things behind walls that look important**: list the URL and one line on "why it looks important". The user opens and reads them in a browser where they are logged in. The agent does not create accounts or log in
+6. Gaps you noticed in the process itself (tool bugs, searchers overstepping)
+7. **Ask the user just one thing, "Did this match your sense of it?", and record the answer verbatim at the end of `<topic>/log.md`** (don't paraphrase). Whether to change the 70% stopping point or the round limit is decided by laying several of these records side by side (not from memory)
 
-返事に要約や解説を書かない。ユーザーに「まとめて」と頼まれたら、そこで初めて書く。
+Don't write summaries or explanations in the reply. Write them only when the user asks for a summary.
 
-### 抜き書きのページ（読むための形）
+### The extract page (a form for reading)
 
-原文を何十本も落としただけでは読まれない（英語の PDF や1時間の字幕のまま）。かといって要約すると早すぎる閉じに戻る。だから止めたら、**抜き書き**（Ellis の extracting）でページを作り、それを最初に渡す。
+Dozens of saved sources go unread (English PDFs, hour-long captions). Summarising them would bring back premature closure. So once stopped, build a page of **extracts** (Ellis's extracting) and hand it over first.
 
-1. `<topic_dir>/extracts.json` を書く。要る主張ごとに節を立て、原文から**そのまま切り出した文**を並べる（ファイル・行・必要なら `end`）。英語には `ja` に訳を添える（訳だと分かる印がページに付く）。印（〔本人〕自動字幕 など）は `mark` に。2段組の PDF のように左右の段が1行に混ざる所は、抜き書きを「…」で区切ると区切りごとに順に照合される（省いたことはページにも「…」で見える）。食い違いは `disagreements` に並べるだけで、どれが正しいかは書かない。届かなかったものは `unreached` に。形の手本はリポジトリの `examples/demo/extracts.json`
-   形（report.py の冒頭と同じ。`?` は省いてよい）:
+1. Write `<topic_dir>/extracts.json`. Make a section for each needed claim, and list sentences **cut verbatim** from the sources (file, line, and `end` if needed). For non-English text, add a translation in `en` (the page marks it as a translation). Labels ([First-hand], auto-captions, etc.) go in `mark`. Where the left and right columns mix onto one line, as in two-column PDFs, separating the extract with "…" makes each piece be matched in order (the omission also shows on the page as "…"). Disagreements are only listed in `disagreements`, without saying which is right. What wasn't reached goes in `unreached`. For a model of the format, see `examples/demo/extracts.json` in the repository
+   Format (same as at the top of report.py; `?` may be omitted):
    ```
    {"title", "question", "stopped",
-    "claims": [{"claim", "status": "付いた|一部だけ|付かなかった", "note"?,
-                "quotes": [{"file", "line", "end"?, "text", "ja"?, "mark"?}]}],
+    "claims": [{"claim", "status": "sourced|partial|unsourced", "note"?,
+                "quotes": [{"file", "line", "end"?, "text", "en"?, "mark"?}]}],
     "disagreements"?: [{"topic", "quotes": [{"file", "line", "text", "who", ...}]}],
     "unreached"?: ["..."]}
    ```
-2. `scripts/report.py <topic_dir>` を回す。**抜き書きが原文の指定の行にそのまま在るかを機械で照合し**、1つでも合わなければ HTML を作らずに止まる（言い換えが紛れ込むのを防ぐ）。合えば `report.html` ができる。各抜き書きは「前後を読む」で原文の前後を開ける
-3. エージェントが書いてよいのは、見出し・状態（付いた／一部だけ／付かなかった）・1行の注記・訳だけ。注記にも結論や評価は書かない（「順番は記事ごとに違う」はよい、「この順が正しい」は書かない）。注記は、誰が何をどうしたかが分かる平らな文で書く
-4. 自動字幕の誤変換は直さずにそのまま切り出す（直すと言い換えになる）。印に「自動字幕」と書けば、読む人が動画で確かめられる
+2. Run `scripts/report.py <topic_dir>`. **It checks by machine that each extract appears verbatim at the given lines of its source**, and if even one doesn't match, it stops without building the HTML (this keeps paraphrases from slipping in). If they match, `report.html` is built. Each extract has a "Read around it" toggle that opens the surrounding lines of the source
+3. The agent may write only the headings, the status (sourced / partial / unsourced), a one-line note, and translations. Notes carry no conclusions or judgements either ("the order differs from article to article" is fine; "this order is correct" is not). Write notes as flat sentences that say who did what and how
+4. Don't fix mistranscriptions in auto-captions; cut them out as they are (fixing them is paraphrasing). If the label says "auto-captions", the reader can check against the video
 
-## 見張る（watch モード）
+## Watch (watch mode)
 
-掘ったあとの地図の「場」を、新着を追う先にする（Ellis の monitoring）。「〇〇の新着見て」「今週の〇〇まとめて」「/imozuru watch <話題>」で入る。**ユーザーが頼んだときだけ回す**。定期に自動で回すかは、何回か思いどおりに動いてから決める。
+Make the "venues" on the map from a dig into the places to follow for new posts (Ellis's monitoring). Enter with "show me what's new in X", "round up this week's X", or "/imozuru watch <topic>". **Run it only when the user asks.** Whether to run it automatically on a schedule is decided after it has worked as intended a few times.
 
-1. **地図があるか見る**。`~/research/<話題>/map.md` が無いとき（いきなり「React の新着」と頼まれたとき）は、2つの入り方がある
-   - **急ぐとき（既定）**: 定番の場所をそのまま足して先に見張る。公式のブログ・GitHub の releases、Qiita のタグ、Zenn のトピック、名前の知れた個人ブログ。地図は最小（問い・場・人だけ）で作り、あとで育てる。React の試しでは 0周目の検索役2本に約2分かかり、結果は定番を直接足したのとほぼ同じだった
-   - **場所の見当がつかない分野**: 上の「1. 地図づくり（0周目）」だけ回して場を作ってから見張る
-2. **見張る先を足す**。map.md の「場」と「人」から、新着を出す場所を選んで `scripts/watch.py add <topic_dir> <url>` で足す。Qiita のタグ・ユーザー、Zenn のトピック・ユーザー、note のユーザー、Reddit、YouTube のチャンネル、RSS を出しているブログ、arXiv の検索（`http://export.arxiv.org/api/query?search_query=...&sortBy=submittedDate&sortOrder=descending`）が足せる。X と pixiv は RSS を出していないので足せない＝見張れないことを返事に書く
-   - **RSS があるかは検索役の言葉ではなく `watch.py add` で決める**。検索役は RSS の URL を推測で書き、「無い」と言った react.dev のフィードが実際は取れた。逆に「更新が止まっている」という検索役の言葉は、check の「最新の1件」で確かめる
-3. **新着を引く**。`scripts/watch.py check <topic_dir>` で前回から新しいものを出す（初回のフィードは直近14日・`--days` で変える）。結果は `watch/<日付-時刻>.md` に残る（同じ日に何度回しても前の結果は消えない）
-   - **新着の無い場所にも、窓に関係なく最新の1件が出る**。公式の大きな出来事が窓の外に落ちても見える
-   - **窓を広げて出し直すときは `--fresh`**。初回の窓の外の記事も「見た」と記録されるので、記録を無視して窓だけで選び直す
-4. **渡す**。新着の一覧を見せる。1件ごとに題名・日付・場所と、フィードに入っている**原文の冒頭を1行**（`>` の引用）。**エージェントの要約や点数は付けない**（原文の冒頭なら書き手の言葉のまま選ぶ手がかりになる）。ユーザーが選んだもの、または要る主張に関わると見たものだけ `fetch.py` で原文を落とし、原文の表に印つきで足す
-   - **件数が多いとき**（目安20件超）は、依頼に合わせて種類で絞って見せてよい（「個人ブログと海外も」なら Qiita・Zenn の数を減らす）。絞ったことと、全件のファイルの場所を書く。絞るのは選び方だけで、要約はしない
-   - 新着の無かった場所の「最新の1件」は、一覧の最後に短く添える
-5. 新着の中に、地図に無い人・場・用語が繰り返し出ていたら、map.md の「次の手がかり」に足し、見張る先に加えるかをユーザーに聞く。見張りから掘りへ戻る入口になる
+1. **Check whether there is a map.** When `~/research/<topic>/map.md` doesn't exist (when asked cold for "what's new in React"), there are two ways in
+   - **In a hurry (default)**: add the standard places directly and start watching first: the official blog and GitHub releases, the Qiita tag, the Zenn topic, well-known personal blogs. Make a minimal map (question, venues, people only) and grow it later. In the React trial, round 0's two searchers took about 2 minutes, and the result was almost the same as adding the standard places directly
+   - **A field where you have no idea where to look**: run only "1. Mapping (round 0)" above to build the venues, then watch
+2. **Add places to watch.** From "Venues" and "People" in map.md, choose places that publish new posts and add them with `scripts/watch.py add <topic_dir> <url>`. You can add Qiita tags and users, Zenn topics and users, note users, Reddit, YouTube channels, blogs that publish RSS, and arXiv searches (`http://export.arxiv.org/api/query?search_query=...&sortBy=submittedDate&sortOrder=descending`). X and pixiv don't publish RSS and can't be added, so say in the reply that they can't be watched
+   - **Decide whether RSS exists with `watch.py add`, not with a searcher's word.** Searchers write RSS URLs from guesswork, and the react.dev feed a searcher said didn't exist could in fact be fetched. Conversely, check a searcher's claim that "it stopped updating" against the "latest item" from check
+3. **Pull new posts.** `scripts/watch.py check <topic_dir>` lists what is new since last time (for a first-time feed, the last 14 days; change with `--days`). Results are kept in `watch/<date-time>.md` (running it several times a day doesn't erase earlier results)
+   - **Places with nothing new still show their latest item, regardless of the window.** That way a big official announcement that fell outside the window is still visible
+   - **To widen the window and list again, use `--fresh`.** Posts outside the first window are also recorded as "seen", so this ignores the record and selects by the window alone
+4. **Hand over.** Show the list of new posts. For each: title, date, place, and **the opening line of the original** from the feed (as a `>` quote). **Don't add agent summaries or scores** (the original's opening line lets the user choose by the writer's own words). Save with `fetch.py` only what the user picks, or what looks relevant to a needed claim, and add it to the source table with its label
+   - **When there are many** (more than about 20), you may filter by kind to match the request ("personal blogs and overseas too" → fewer from Qiita and Zenn). Say that you filtered and where the full file is. Filtering only affects what is chosen; still no summaries
+   - Add the "latest item" for places with nothing new briefly at the end of the list
+5. If people, venues, or terms not on the map keep showing up in new posts, add them to "Next leads" in map.md and ask the user whether to add them to the watch list. This is the way back from watching to digging
 
-## map.md の書式
+## map.md format
 
 ```markdown
-# map: <話題>
+# map: <topic>
 
-問い: <1〜2行>
-入口の言葉: <最初に使った言葉>
+Question: <1–2 lines>
+Entry words: <the words used first>
 
-## 要る主張
-- [ ] <主張1> — <原文の場所。付いたら [x]>
+## Needed claims
+- [ ] <claim 1> — <location in the source; [x] once sourced>
 
-## 用語
-- <用語>（<日本語の呼び方>）— <出た URL か sources/ のファイル>
+## Terms
+- <term> (<what it is called in Japanese>) — <URL where it appeared, or a file in sources/>
 
-## 人
-- <名前>（<所属>）— <代表作>
+## People
+- <name> (<affiliation>) — <best-known work>
 
-## 場
-- <学会・雑誌・一覧・リポジトリ> — <URL>
+## Venues
+- <conference, journal, list, repository> — <URL>
 
-## 原文（sources/）
-| 論文・資料 | ファイル | 元の URL | どこから来たか（周・動き） |
+## Sources (sources/)
+| Paper or material | File | Original URL | Where it came from (round, move) |
 |---|---|---|---|
 
-## 次の手がかり
-- <まだたどっていないもの> — <なぜ匂うか>
+## Next leads
+- <something not followed yet> — <why it smells promising>
 ```
 
-節の順番は変えない。追記は各節の末尾に足す（周をまたいで表が散らばるのを防ぐ）。原文の表は1論文1行で、PDF と .txt、抄録の .md のように複数のファイルがあれば同じ行に並べる。検索役由来で原文を開いていない行には（未確認）を付ける。
+Don't change the order of the sections. Append to the end of each section (so tables don't scatter across rounds). The source table has one row per paper; if there are several files, such as a PDF and its .txt, or an abstract as .md, list them on the same row. Rows from searchers whose sources haven't been opened get (unverified).
 
-原文の表の「論文・資料」の欄には、頭に**種類の印**を1つ付ける。点数はつけない。どれを信じるかはユーザーが原文を読んで決める。
+In the "Paper or material" column of the source table, prefix one **kind label**. No scores. Which to trust is for the user to decide by reading the sources.
 
-- 〔論文〕査読や会議を通ったもの、arXiv のプレプリント
-- 〔本人〕やった本人の記録（自分で試した・作った・測った過程が書いてある記事・動画・README）
-- 〔観察〕他人の作品ややり方を見て、特徴を書き出したもの（「この絵師たちはこう塗っている」）
-- 〔まとめ〕他人の知見を集めた・言い換えた記事（「調べてみた」系、まとめサイト、解説の解説、百科事典・用語辞典）
-- 〔公式〕道具や製品を作った側の文書・発表
+- [Paper] peer-reviewed or conference papers, arXiv preprints
+- [First-hand] a record by the person who did it (articles, videos, or READMEs describing the process of trying, making, or measuring it themselves)
+- [Observation] notes listing features of someone else's work or methods ("these illustrators paint like this")
+- [Roundup] articles that collect or restate others' findings ("I looked into it" posts, aggregator sites, explainers of explainers, encyclopedias, glossaries)
+- [Official] documents and announcements from the maker of the tool or product
 
-〔本人〕は個人の発信でも一次情報になる。〔観察〕は、観察した相手が名前で分かるならその人を「次の手がかり」に足す（その人自身の記録が本当の一次情報）。〔まとめ〕は入口としては便利でも、たどる先（後ろへ）を拾うのに使い、主張の根拠にはなるべく〔本人〕か〔論文〕を当てる。
+[First-hand] is primary information even when it's a personal post. For [Observation], if the person observed can be identified by name, add them to "Next leads" (their own record is the real primary source). [Roundup] is handy as an entry point, but use it for picking up things to follow (backward), and back claims with [First-hand] or [Paper] where possible.
 
-印のあとに、分かる範囲で添える。
+After the label, add what you can tell.
 
-- **作例あり**: 書き手自身の作品が載っている。「上手い人のやり方」が知りたいときは、作例のあるものを先に読んでもらう。上手いかどうかはユーザーが作例を見て決める
-- **測定あり**: 書き手が自分で測った数字や比べた結果が載っている（ベンチマーク、実写の色の実測、設定値の比較）
-- **AI 補助**: 本人が「AI に書いてもらった」と書いている
-- **宣伝あり**: 書き手が売っている物やサービスへ誘う記事・出品ページ。中身は〔本人〕のこともあるが、読む側が割り引けるように添える
-- **（未読）**: 落としたが、エージェントもサブエージェントもまだ中身を読んでいない
-- **自動字幕**: YouTube の自動字幕から起こした。誤変換が多い（「線画」→「洗画」）ので、引用は読み取れる範囲に絞り、主張の根拠にするときは動画で確かめてもらう
+- **has examples**: the writer's own work is shown. When the user wants to know "how skilled people do it", have them read the ones with examples first. Whether someone is skilled is for the user to decide by looking at the examples
+- **has measurements**: the writer's own measured numbers or comparisons are included (benchmarks, measured colours from photos, comparisons of settings)
+- **AI-assisted**: the writer says they had AI write it
+- **promotional**: an article or listing page that leads to something the writer sells. The content may still be [First-hand], but this lets the reader discount accordingly
+- **(unread)**: saved, but neither the agent nor any subagent has read it yet
+- **auto-captions**: taken from YouTube auto-captions. Mistranscriptions are common (「線画」 "line art" → 「洗画」), so keep quotes to what is legible, and have the user check against the video when it backs a claim
 
-## 道具
+## Tools
 
-スクリプトは Python 3.10 以上の標準ライブラリだけで動く。外部コマンドは、あれば使う（無いときの動きは各行に書いた）。
+The scripts run on the Python 3.10+ standard library alone. External commands are used when available (what happens without them is noted on each line).
 
-- `scripts/fetch.py <sources_dir> <name> <url>` — 落として本物か確かめる。PDF は .pdf と .txt（`pdftotext -layout`・poppler か Xpdf）、HTML は .md、YouTube は字幕を `[分:秒] 文` の .md（`yt-dlp`・動画は落とさない）。文字の層が無い PDF は `pdftoppm` と `tesseract` で OCR する。要るコマンドが無いときは、無いコマンドの名前を書いて `FAIL` する。HTML は [ax](https://github.com/yusukebe/ax) があれば ax で、無ければ標準ライブラリで本文を文字にする（見出しや表の形は ax のほうが残る）。取ってきたものは作業用のフォルダで検査し、通ったものだけを sources_dir へ移す。404・壁・短すぎる本文は `FAIL`（同じ名前の原文がすでにあれば、そのまま残る）。X は本文が取れないので取りに行かず `FAIL`＝URL と、検索役が拾った抜粋を（未確認）で map.md に残す
-- 動画の場所は行番号の代わりに時刻で指す（`sources/x.md [12:34]`）
-- `scripts/report.py <topic_dir> [--check]` — extracts.json の抜き書きを原文と照合し、合えば report.html にする。`--check` は照合だけ
-- `scripts/watch.py add|list|check` — 見張り。RSS / Atom を引いて前回からの新着を出す。検索を使わないので費用はかからず結果も揺れない。DOCTYPE・ENTITY を含むフィードは安全のため読まない
-- `scripts/chain.py find|refs|cites|author` — OpenAlex で引用と著者をたどる。1日 1,000 回まで無料の枠で、プリペイド残高が 0 なら超えても止まるだけ。**API キーや支払いの登録はしない**。古めの論文に強く、新しい論文と同名の多い著者に弱い（author は同名の別人を掴むことがある）
-- ファイル名は `<著者>-<年>-<短い題>`、arXiv は `arxiv-<番号>-<短い題>`
+- `scripts/fetch.py <sources_dir> <name> <url>` — saves a source and checks that it is real. PDFs become .pdf and .txt (`pdftotext -layout`, poppler or Xpdf), HTML becomes .md, YouTube becomes captions as `[min:sec] text` in .md (`yt-dlp`; the video itself isn't downloaded). PDFs with no text layer are OCR'd with `pdftoppm` and `tesseract`. If a required command is missing, it prints `FAIL` with the missing command's name. HTML is turned into text with [ax](https://github.com/yusukebe/ax) when available, otherwise with the standard library (ax keeps headings and tables better). What it fetches is checked in a working folder, and only what passes is moved to sources_dir. 404s, walls, and too-short text are `FAIL` (if a source with the same name already exists, it is left in place). X doesn't serve its text, so it isn't fetched and is `FAIL` = keep the URL and the snippet the searcher picked up in map.md as (unverified)
+- Locations in videos are given by time instead of line number (`sources/x.md [12:34]`)
+- `scripts/report.py <topic_dir> [--check]` — checks the extracts in extracts.json against the sources and, if they match, builds report.html. `--check` only checks
+- `scripts/watch.py add|list|check` — watching. Pulls RSS / Atom and lists what is new since last time. It doesn't use search, so it costs nothing and results don't fluctuate. Feeds containing DOCTYPE or ENTITY are not read, for safety
+- `scripts/chain.py find|refs|cites|author` — follows citations and authors via OpenAlex. Free up to 1,000 calls a day, and with a prepaid balance of 0 it just stops when over the limit. **Don't register an API key or payment details.** Strong on older papers, weak on new papers and on authors with common names (author can grab a different person with the same name)
+- File names are `<author>-<year>-<short-title>`; for arXiv, `arxiv-<number>-<short-title>`
 
-## 境界
+## Boundaries
 
-- 検索役の同時起動は2本まで（違う探し方の2本で飽和を数える設計のため。増やすと費用が増え、重なりも読みにくくなる）
-- 機密や個人データが絡む調べものは外部に出さない。検索役は Web を検索するので、問いの中身が検索語として外に出る
-- 有料の論文を回避する手段（海賊版サイト等）は使わない。届かなかったものとして報告する
-- 落とした原文は手元で読むための写し。再配布はしない
+- At most two searchers at once (the design counts saturation from two searchers with different approaches; more would raise costs and make the overlap harder to read)
+- Don't send research involving confidential or personal data outside. Searchers search the web, so the content of the question goes out as search terms
+- Don't use ways around paywalls (pirate sites, etc.). Report them as not reached
+- Saved sources are copies for reading locally. Don't redistribute them

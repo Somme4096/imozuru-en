@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""論文の引用を前へ・後ろへたどる（OpenAlex）。
+"""Follow a paper's citations forward and backward (OpenAlex).
 
-Bates 1989 の footnote chasing（後ろへ）と citation searching（前へ）を道具でやる。
-引用をたどると、その分野の言葉を知らなくても次の論文に行ける（Bates 1989 L301-302）。
+Does Bates 1989's footnote chasing (backward) and citation searching (forward) with a tool.
+Following citations gets you to the next paper even without knowing the field's words (Bates 1989 L301-302).
 
-OpenAlex は1日 1,000 回まで無料の枠（x-ratelimit-limit-usd 0.1）。プリペイドの残高が
-0 なら枠を超えても止まるだけで課金されない。API キーや支払いの登録はしない。
+OpenAlex is free up to 1,000 calls a day (x-ratelimit-limit-usd 0.1). With a prepaid balance
+of 0, going over just stops; nothing is charged. Don't register an API key or payment details.
 
-使い方:
-    chain.py find  <DOI か題名>          … 論文を特定して ID を出す（題名なら候補5件）
-    chain.py refs  <ID か DOI> [-n 20]    … 後ろへ: その論文が引いている文献
-    chain.py cites <ID か DOI> [-n 20]    … 前へ: その論文を引いている文献（被引用の多い順）
-    chain.py author <著者名> [-n 20]      … 著者で追う: その人の論文（被引用の多い順）
-出力: 1行1本、タブ区切り（年 被引用数 ID 題名 DOI 無料PDF）
+Usage:
+    chain.py find  <DOI or title>          … identify a paper and print its ID (5 candidates for a title)
+    chain.py refs  <ID or DOI> [-n 20]     … backward: works the paper cites
+    chain.py cites <ID or DOI> [-n 20]     … forward: works citing the paper (most cited first)
+    chain.py author <author name> [-n 20]  … by author: that person's papers (most cited first)
+Output: one work per line, tab-separated (year, citation count, ID, title, DOI, free PDF)
 """
 
 import json
@@ -34,14 +34,14 @@ def get(path: str, **params) -> dict:
 
 
 def search_title(key: str) -> list[dict]:
-    """題名だけを対象に探し、被引用の多い順に5件返す。
+    """Search titles only and return 5 results, most cited first.
 
-    全文検索（search=）は解説記事や重複の記録が上に来て、Kuhlthau 1991 の本体が
-    5位以内に出なかった。題名に絞って被引用順に並べると本体が1位に来た。
-    題名に著者名を混ぜると外れるので、題名の語だけを渡す。
+    Full-text search (search=) put explainer articles and duplicate records on top, and Kuhlthau 1991
+    itself didn't make the top 5. Restricting to titles and sorting by citations put it first.
+    Mixing author names into the title throws it off, so pass only the title's words.
 
-    登録された題名が副題抜きのことがある（Marchionini 2006 は "Exploratory search"
-    だけ）。全部の語では0件になるので、0件なら前半の3語で引き直す。
+    The registered title sometimes lacks the subtitle (Marchionini 2006 is just "Exploratory search").
+    All the words then give 0 results, so on 0 results it retries with the first 3 words.
     """
     words = key.replace(",", " ").replace(":", " ").split()
     for terms in (words, words[:3]):
@@ -53,7 +53,7 @@ def search_title(key: str) -> list[dict]:
 
 
 def resolve(key: str) -> dict:
-    """DOI・OpenAlex ID・題名のどれからでも論文を1本引く。題名なら被引用の最も多い1本。"""
+    """Look up one paper from a DOI, OpenAlex ID, or title. For a title, the most cited match."""
     if key.startswith("W") or "openalex.org/" in key:
         return get(f"/works/{key.rsplit('/', 1)[-1]}", select=FIELDS)
     if key.startswith("10.") or "doi.org/" in key:
@@ -61,7 +61,7 @@ def resolve(key: str) -> dict:
         return get(f"/works/doi:{doi}", select=FIELDS)
     hits = search_title(key)
     if not hits:
-        raise SystemExit(f"見つからない: {key}")
+        raise SystemExit(f"Not found: {key}")
     return hits[0]
 
 
@@ -86,10 +86,10 @@ def main() -> int:
     cmd, key = args[0], " ".join(args[1:])
 
     if cmd == "find":
-        # 題名のときは候補を全部見せる。どれが本体かを読み手が確かめられるように。
+        # For a title, show every candidate, so the reader can check which one is the paper itself.
         hits = [resolve(key)] if key.startswith(("W", "10.")) or "/" in key else search_title(key)
         if not hits:
-            print(f"候補なし: {key}（DOI で引き直すか、題名の語を減らす）")
+            print(f"No candidates: {key} (try the DOI, or fewer title words)")
         for w in hits:
             print(row(w))
     elif cmd in ("refs", "cites"):
@@ -97,17 +97,17 @@ def main() -> int:
         flt = f"cited_by:{wid}" if cmd == "refs" else f"cites:{wid}"
         res = get("/works", filter=flt, sort="cited_by_count:desc",
                   **{"per-page": n}, select=FIELDS)
-        print(f"# {cmd} {wid} 全{res['meta']['count']}本中 上位{len(res['results'])}本")
+        print(f"# {cmd} {wid} top {len(res['results'])} of {res['meta']['count']}")
         for w in res["results"]:
             print(row(w))
     elif cmd == "author":
         hits = get("/authors", search=key, **{"per-page": 1})["results"]
         if not hits:
-            raise SystemExit(f"著者が見つからない: {key}")
+            raise SystemExit(f"Author not found: {key}")
         a = hits[0]
         aid = a["id"].rsplit("/", 1)[-1]
         inst = ", ".join(i["display_name"] for i in a.get("last_known_institutions") or [])
-        print(f"# author {a['display_name']} {aid} {inst} 論文{a.get('works_count')}本")
+        print(f"# author {a['display_name']} {aid} {inst} {a.get('works_count')} works")
         res = get("/works", filter=f"author.id:{aid}", sort="cited_by_count:desc",
                   **{"per-page": n}, select=FIELDS)
         for w in res["results"]:

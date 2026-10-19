@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
-"""地図の「場」を見張り、前回から新しく出たものを一覧にする（Ellis の monitoring）。
+"""Watch the "venues" on the map and list what has appeared since last time (Ellis's monitoring).
 
-検索ではなく RSS / Atom を引く。検索は結果が揺れて費用もかかるが、フィードは
-「その場所に新しく出たもの」をそのまま返す。決まった Qiita・Zenn・X を毎回検索する代わりに、
-掘って見つけた場所を見張るための道具。
+Pulls RSS / Atom instead of searching. Search results fluctuate and cost money, but a feed
+returns "what is new at that place" as-is. Instead of searching the same Qiita, Zenn, and X every time,
+this is a tool for watching the places a dig turned up.
 
-新着には要約をつけない。代わりにフィードに入っている原文の冒頭を1行そのまま載せる
-（エージェントの言葉を挟まずに、選ぶ手がかりだけ出す）。
+New posts get no summary. Instead, the opening line of the original from the feed is shown as-is
+(only a cue for choosing, with no agent wording in between).
 
-使い方:
-    watch.py add   <topic_dir> <url> [名前]   … 見張る先を足す（RSS の場所は自動で探す）
-    watch.py list  <topic_dir>               … 見張る先の一覧
+Usage:
+    watch.py add   <topic_dir> <url> [name]  … add a place to watch (finds the RSS automatically)
+    watch.py list  <topic_dir>               … list the places watched
     watch.py check <topic_dir> [--days N] [--fresh]
-                                             … 新着を出して watch/<日付-時刻>.md に残す
-                                               初回のフィードは直近 N 日（既定14）だけ
-                                               --fresh は見た記録を無視して窓だけで選び直す
-                                               新着の無い場所も、最新の1件を窓に関係なく出す
+                                             … list new posts and keep them in watch/<date-time>.md
+                                               a first-time feed only shows the last N days (default 14)
+                                               --fresh ignores the seen record and selects by the window alone
+                                               places with nothing new still show their latest item, regardless of the window
 
-置き場（<topic_dir> = ~/research/<話題>/）:
-    watch.tsv          種類・名前・フィードの URL・元の URL（タブ区切り）
-    watch-state.json   フィードごとに見たことのある記事の URL
-    watch/<日付>.md     check の結果
+Files (<topic_dir> = ~/research/<topic>/):
+    watch.tsv          kind, name, feed URL, original URL (tab-separated)
+    watch-state.json   URLs of posts already seen, per feed
+    watch/<date>.md    results of check
 """
 
 import datetime as dt
@@ -36,17 +36,17 @@ from pathlib import Path
 
 UA = {"User-Agent": "Mozilla/5.0 imozuru-watch"}
 ATOM = "{http://www.w3.org/2005/Atom}"
-# 冒頭の1行の長さ。選ぶ手がかりには足り、要約の代わりにはならない長さに留める。
+# Length of the opening line. Enough to choose by, short enough not to stand in for a summary.
 HEAD_CHARS = 120
-# 見たことのある URL をフィードごとに残す上限。フィードは新しい順に数十件しか返さないので、
-# これだけあれば「前に見たもの」を新着と取り違えない。
+# How many seen URLs to keep per feed. Feeds return only a few dozen items, newest first,
+# so this many is enough to never mistake "seen before" for new.
 SEEN_LIMIT = 500
 
 
 class _Redirect308(urllib.request.HTTPRedirectHandler):
-    """Python 3.10 でも 308 の転送をたどる（3.10 は 308 を扱わない）。
+    """Follow 308 redirects on Python 3.10 too (3.10 doesn't handle 308).
 
-    fetch.py と同じもの。-I で動かすとスクリプトの置き場が import の道に入らないので、写して持つ。
+    Same as in fetch.py. Run with -I, the script's folder isn't on the import path, so this keeps its own copy.
     """
 
     http_error_308 = urllib.request.HTTPRedirectHandler.http_error_302
@@ -65,7 +65,7 @@ def fetch(url: str) -> tuple[bytes, str]:
 
 
 def known_feed(url: str) -> tuple[str, str] | None:
-    """URL の形だけでフィードが分かる場所。種類とフィードの URL を返す。"""
+    """Places whose feed can be told from the shape of the URL alone. Returns the kind and the feed URL."""
     rules = [
         (r"^https?://qiita\.com/tags/([^/?#]+)", "qiita-tag", "https://qiita.com/tags/{0}/feed"),
         (r"^https?://zenn\.dev/topics/([^/?#]+)", "zenn-topic", "https://zenn.dev/topics/{0}/feed"),
@@ -84,10 +84,10 @@ def known_feed(url: str) -> tuple[str, str] | None:
 
 
 def discover(url: str) -> tuple[str, str]:
-    """ページの <link rel="alternate" type="application/rss+xml"> からフィードを探す。
+    """Find the feed from the page's <link rel="alternate" type="application/rss+xml">.
 
-    個人ブログ・はてな・WordPress・YouTube のチャンネルページはこれを持っている。
-    URL そのものがフィードなら、それをそのまま使う。
+    Personal blogs, Hatena, WordPress, and YouTube channel pages have one.
+    If the URL itself is a feed, use it as-is.
     """
     hit = known_feed(url)
     if hit:
@@ -107,7 +107,7 @@ def discover(url: str) -> tuple[str, str]:
                     feed = root + feed
                 kind = "youtube" if "youtube.com/feeds" in feed else "site"
                 return kind, feed
-    raise SystemExit(f"RSS が見つからない: {url}（ページに RSS の案内が無い。X・pixiv はそもそも出していない）")
+    raise SystemExit(f"No RSS found: {url} (the page doesn't advertise one; X and pixiv don't publish RSS at all)")
 
 
 def plain(s: str | None) -> str:
@@ -120,29 +120,29 @@ def parse_date(s: str | None) -> dt.datetime | None:
         return None
     s = s.strip()
     try:
-        d = email.utils.parsedate_to_datetime(s)  # RSS 2.0 の形
+        d = email.utils.parsedate_to_datetime(s)  # RSS 2.0 format
     except (TypeError, ValueError):
         try:
-            d = dt.datetime.fromisoformat(s.replace("Z", "+00:00"))  # Atom の形
+            d = dt.datetime.fromisoformat(s.replace("Z", "+00:00"))  # Atom format
         except ValueError:
             return None
     return d if d.tzinfo else d.replace(tzinfo=dt.timezone.utc)
 
 
 def items(feed_bytes: bytes) -> list[dict]:
-    """RSS 2.0 と Atom の記事を、題・URL・日付・冒頭の形にそろえる。
+    """Normalise RSS 2.0 and Atom items into title, URL, date, and opening line.
 
-    フィードは他人のサーバーから来る。DOCTYPE や ENTITY を含む XML は、外部の実体の
-    読み込みや入れ子の展開（billion laughs）に使われうるので、読まずに弾く。
-    defusedxml を使うのが定石だが入っていない（新しく入れるのは確認が要る）。
-    ふつうの RSS / Atom は DOCTYPE を使わないので、弾いて困ることはまず無い。
+    Feeds come from other people's servers. XML containing DOCTYPE or ENTITY can be used to load
+    external entities or expand nested ones (billion laughs), so it is rejected unread.
+    defusedxml is the usual answer, but it isn't installed (adding a dependency needs sign-off).
+    Ordinary RSS / Atom doesn't use DOCTYPE, so rejecting it rarely costs anything.
     """
-    # 宣言は根の要素より前にしか置けない。本文（HTML の記事を CDATA で含むもの）に
-    # 「<!DOCTYPE html>」が書かれていても弾かないよう、根の前だけを見る。
+    # Declarations can only come before the root element. Look only before the root, so a body
+    # (an HTML article wrapped in CDATA) containing "<!DOCTYPE html>" isn't rejected.
     root_at = re.search(rb"<(rss|feed|rdf:RDF)\b", feed_bytes)
     prolog = feed_bytes[: root_at.start()] if root_at else feed_bytes
     if re.search(rb"<!(DOCTYPE|ENTITY)", prolog, re.I):
-        raise ValueError("DOCTYPE か ENTITY を含むフィードは読まない")
+        raise ValueError("feeds containing DOCTYPE or ENTITY are not read")
     root = ET.fromstring(feed_bytes)
     out = []
     for it in root.iter("item"):
@@ -178,20 +178,20 @@ def load_watch(topic: Path) -> list[list[str]]:
 
 
 def cmd_add(topic: Path, url: str, name: str | None) -> int:
-    # 1つ足せなくても、続けて他を足せるように例外で落とさず1行で返す
-    # （Reddit が 429 を返してトレースバックで止まった・2026-10-10 の試し）。
+    # Report a failure in one line instead of raising, so the next ones can still be added
+    # (Reddit returned 429 and it stopped with a traceback, 2026-10-10 trial).
     try:
         kind, feed = discover(url)
-        found = items(fetch(feed)[0])  # 引けないフィードは足さない
+        found = items(fetch(feed)[0])  # don't add a feed that can't be read
     except SystemExit as e:
-        print(f"足せなかった: {e}")
+        print(f"Couldn't add: {e}")
         return 1
     except Exception as e:
-        print(f"足せなかった: {url}（{type(e).__name__}: {e}）")
+        print(f"Couldn't add: {url} ({type(e).__name__}: {e})")
         return 1
     for row in load_watch(topic):
         if row[2] == feed:
-            print(f"もう見張っている: {row[1]} {feed}")
+            print(f"Already watching: {row[1]} {feed}")
             return 0
     if name:
         label = name
@@ -201,39 +201,39 @@ def cmd_add(topic: Path, url: str, name: str | None) -> int:
     elif kind == "feed" and found:
         label = found[0]["title"][:30]
     else:
-        # 末尾だけだと「blog」「releases」ばかりになって見分けられないので、ドメインと道筋で名づける
+        # The last segment alone gives nothing but "blog" and "releases", so name it by domain and path
         label = re.sub(r"^https?://(www\.)?", "", url).rstrip("/")[:40]
     topic.mkdir(parents=True, exist_ok=True)
     p = topic / "watch.tsv"
     if not p.exists():
-        p.write_text("# 種類\t名前\tフィード\t元の URL\n", encoding="utf-8")
+        p.write_text("# kind\tname\tfeed\toriginal URL\n", encoding="utf-8")
     with p.open("a", encoding="utf-8") as f:
         f.write(f"{kind}\t{label}\t{feed}\t{url}\n")
-    print(f"足した: {kind}\t{label}\t{feed}（いま {len(found)} 件）")
+    print(f"Added: {kind}\t{label}\t{feed} ({len(found)} items now)")
     return 0
 
 
 def cmd_check(topic: Path, days: int, fresh: bool) -> None:
-    """新着を出す。fresh なら見たことの記録を無視して、窓（days）だけで選び直す。
+    """List new posts. With fresh, ignore the seen record and select by the window (days) alone.
 
-    初回の窓の外の記事も「見た」と記録されるので、窓を広げて出し直したいときに
-    記録が邪魔をする（14日で出したあと 30日で見直せなかった・2026-10-10 の試し）。
+    Posts outside the first window are also recorded as "seen", so the record gets in the way
+    when widening the window to list again (after 14 days, 30 days couldn't be reviewed, 2026-10-10 trial).
     """
     rows = load_watch(topic)
     if not rows:
-        raise SystemExit(f"見張る先が無い: {topic}/watch.tsv（watch.py add で足す）")
+        raise SystemExit(f"Nothing to watch: {topic}/watch.tsv (add with watch.py add)")
     state_p = topic / "watch-state.json"
     state = json.loads(state_p.read_text(encoding="utf-8")) if state_p.exists() else {}
     now = dt.datetime.now(dt.timezone.utc)
     cutoff = now - dt.timedelta(days=days)
-    lines = [f"# 新着 {now.astimezone():%Y-%m-%d %H:%M}", ""]
+    lines = [f"# New posts {now.astimezone():%Y-%m-%d %H:%M}", ""]
     quiet: list[str] = []
     total = 0
     for kind, label, feed, *_ in rows:
         try:
             got = items(fetch(feed)[0])
-        except Exception as e:  # 1つのフィードが落ちても他は見る
-            lines += [f"## {label}（{kind}）", f"- 取れなかった: {type(e).__name__}: {e}", ""]
+        except Exception as e:  # if one feed fails, still check the others
+            lines += [f"## {label} ({kind})", f"- Couldn't fetch: {type(e).__name__}: {e}", ""]
             continue
         seen = set() if fresh else set(state.get(feed, []))
         first = fresh or feed not in state
@@ -242,38 +242,38 @@ def cmd_check(topic: Path, days: int, fresh: bool) -> None:
         new.sort(key=lambda i: i["date"] or now, reverse=True)
         state[feed] = ([i["link"] for i in got] + list(set(state.get(feed, [])) - {i["link"] for i in got}))[:SEEN_LIMIT]
         if not new:
-            # 新着が無くても、窓に関係なくそのフィードの最新を1行出す。公式の最新が
-            # 窓の外に落ちて見えなくなるのを防ぐ（React 19.3 が 31日前で漏れた）。
+            # Even with nothing new, show the feed's latest item in one line, regardless of the window. This keeps
+            # the latest official news from dropping out of sight past the window (React 19.3 was missed at 31 days old).
             dated = [i for i in got if i["date"]]
             if dated:
                 last = max(dated, key=lambda i: i["date"])
-                quiet.append(f"- {label}（{kind}）最新 {last['date'].astimezone():%Y-%m-%d} [{last['title']}]({last['link']})")
+                quiet.append(f"- {label} ({kind}) latest {last['date'].astimezone():%Y-%m-%d} [{last['title']}]({last['link']})")
             else:
-                quiet.append(f"- {label}（{kind}）記事なし")
+                quiet.append(f"- {label} ({kind}) no posts")
             continue
         total += len(new)
-        lines.append(f"## {label}（{kind}）{'・直近' + str(days) + '日' if first else ''}")
+        lines.append(f"## {label} ({kind}){', last ' + str(days) + ' days' if first else ''}")
         for i in new:
-            day = i["date"].astimezone().strftime("%Y-%m-%d") if i["date"] else "日付なし"
+            day = i["date"].astimezone().strftime("%Y-%m-%d") if i["date"] else "no date"
             lines.append(f"- {day} [{i['title']}]({i['link']})")
             if i["head"]:
                 lines.append(f"  > {i['head'][:HEAD_CHARS]}{'…' if len(i['head']) > HEAD_CHARS else ''}")
         lines.append("")
     if total == 0:
-        lines += ["新着なし", ""]
+        lines += ["Nothing new", ""]
     if quiet:
-        lines += ["## 新着の無かった場所（窓に関係なく最新の1件）", *quiet, ""]
+        lines += ["## Places with nothing new (latest item, regardless of the window)", *quiet, ""]
     state_p.write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
-    # 秒まで入れる。日付だけだと同じ日の2回目が1回目を上書きして消した（2026-10-10 の試し）。
+    # Include seconds. With the date alone, the second run of the day overwrote the first (2026-10-10 trial).
     out = topic / "watch" / f"{now.astimezone():%Y-%m-%d-%H%M%S}.md"
     n = 2
-    while out.exists():  # 同じ秒にもう一度回したときも、前の結果を消さない
+    while out.exists():  # don't erase an earlier result even when run again within the same second
         out = out.with_name(f"{now.astimezone():%Y-%m-%d-%H%M%S}-{n}.md")
         n += 1
     out.parent.mkdir(exist_ok=True)
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
-    print(f"\n→ {out}（新着 {total} 件・見張る先 {len(rows)}）")
+    print(f"\n→ {out} ({total} new, {len(rows)} watched)")
 
 
 def main() -> int:
@@ -304,6 +304,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    # 記事の題と冒頭を出すので、端末の文字コードに無い字（cp932 の à など）で落ちないようにする
+    # It prints post titles and opening lines, so don't crash on characters the terminal encoding lacks (à in cp932, etc.)
     sys.stdout.reconfigure(errors="replace")
     sys.exit(main())

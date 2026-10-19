@@ -1,4 +1,4 @@
-"""取得名と抜き書きの参照先が sources/ の境界を守ることを検査する。"""
+"""Test that fetch names and extract file references stay inside sources/."""
 
 import contextlib
 import importlib.util
@@ -95,7 +95,7 @@ class FileBoundaryTests(unittest.TestCase):
     def test_failed_report_keeps_prior_content(self):
         (self.sources / "paper.md").write_text("Original sentence", encoding="utf-8")
         data = {"title": "Test", "question": "Q", "stopped": "Done", "claims": [
-            {"claim": "Claim", "status": "付いた", "quotes": [self.quote("paper.md", "…")]}]}
+            {"claim": "Claim", "status": "sourced", "quotes": [self.quote("paper.md", "…")]}]}
         (self.topic / "extracts.json").write_text(json.dumps(data), encoding="utf-8")
         prior = self.topic / "report.html"
         prior.write_text("Previous report", encoding="utf-8")

@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""抜き書き（extracts.json）を、原文どおりか確かめてから読むためのページ（report.html）にする。
+"""Turn the extracts (extracts.json) into a page for reading (report.html), after checking them against the sources.
 
-原文を40本落としても、英語の PDF や1時間の字幕のままでは読まれずに終わる。
-かといってエージェントが要約すると「早すぎる閉じ」に戻る。間を取るのが Ellis の
-extracting＝抜き書き。主張ごとに原文をそのまま切り出して並べ、エージェントが書くのは
-見出し・「見つからなかった」・英語の訳だけにする。
+Save 40 sources and, left as English PDFs and hour-long captions, they go unread.
+Yet if the agent summarises them, it is back to "premature closure". The middle ground is
+Ellis's extracting: for each claim, cut passages from the sources verbatim and lay them out.
+The agent writes only the headings, "not found", and translations.
 
-言い換えが紛れ込まないよう、抜き書きの文が原文の指定の行にそのまま在るかを機械で確かめる。
-1つでも見つからなければ HTML は作らず、どれが合わないかを出して止まる。
+To keep paraphrases from slipping in, it checks by machine that each extract appears verbatim at the given lines of its source.
+If even one isn't found, it builds no HTML, prints which ones don't match, and stops.
 
-使い方:
+Usage:
     report.py <topic_dir>         … <topic_dir>/extracts.json → <topic_dir>/report.html
-    report.py <topic_dir> --check … 照合だけして HTML は作らない
+    report.py <topic_dir> --check … check only, no HTML
 
-extracts.json の形（例はリポジトリの examples/demo/extracts.json）:
+Format of extracts.json (example in the repository at examples/demo/extracts.json):
     {"title", "question", "stopped",
-     "claims": [{"claim", "status": "付いた|一部だけ|付かなかった", "note"?,
-                 "quotes": [{"file", "line", "end"?, "text", "ja"?, "mark"?, "context_note"?}]}],
+     "claims": [{"claim", "status": "sourced|partial|unsourced", "note"?,
+                 "quotes": [{"file", "line", "end"?, "text", "en"?, "mark"?, "context_note"?}]}],
      "disagreements"?: [{"topic", "quotes": [{..., "who"}]}],
      "unreached"?: ["..."]}
 """
@@ -27,18 +27,18 @@ import re
 import sys
 from pathlib import Path, PureWindowsPath
 
-# 前後に見せる行数。抜き書きがどんな流れの中にあったかを、ページの中で開いて確かめられるように。
+# Lines to show before and after, so the reader can open the flow an extract sat in from within the page.
 CONTEXT_LINES = 6
 
 
 def norm(s: str) -> str:
-    """照合用に空白・改行・箇条書きの印をそろえる。文字そのものは変えない。"""
+    """Normalise whitespace, line breaks, and bullet markers for matching. The characters themselves are left alone."""
     s = re.sub(r"(?m)^\s*[-*]\s+", " ", s)
     return re.sub(r"\s+", " ", s).strip()
 
 
 def verify(src_dir: Path, q: dict) -> tuple[bool, list[str], int, int]:
-    """抜き書きが原文の指定の行（前後2行の余裕つき）にそのまま在るか。前後の文脈も返す。"""
+    """Whether the extract appears verbatim at the given lines of the source (with 2 lines of slack either side). Also returns the surrounding context."""
     relative = Path(q["file"])
     if relative.is_absolute() or PureWindowsPath(q["file"]).is_absolute() or ".." in relative.parts:
         return False, [], 0, 0
@@ -52,14 +52,14 @@ def verify(src_dir: Path, q: dict) -> tuple[bool, list[str], int, int]:
         return False, [], 0, 0
     if not path.is_relative_to(root) or not path.is_file():
         return False, [], 0, 0
-    # splitlines() はページ区切り（\f）も改行に数え、grep・sed と行番号がずれる。改行だけで数える
+    # splitlines() also counts page breaks (\f) as line breaks, so line numbers drift from grep and sed. Split on newlines only
     lines = path.read_text(encoding="utf-8", errors="replace").split("\n")
     start = max(1, q["line"] - 2)
     end = min(len(lines), q.get("end", q["line"]) + 2)
     region = norm(" ".join(lines[start - 1:end]))
-    # 2段組の PDF は左右の段が1行に混ざり、何行かにまたがる文はそのままでは照合できない
-    # （Yoshida 2008 で起きた）。抜き書きを「…」で区切れば、区切りごとに順に照らす。
-    # 区切りはページにも「…」として残るので、省いたことが読む人に見える。
+    # In two-column PDFs the left and right columns mix onto one line, so a sentence spanning several lines can't be matched as-is
+    # (this happened with Yoshida 2008). If the extract is split with "…", each piece is matched in order.
+    # The splits stay on the page as "…", so the reader can see something was left out.
     pieces = [norm(p) for p in q["text"].split("…") if norm(p)]
     ok, pos = bool(pieces), 0
     for piece in pieces:
@@ -80,8 +80,8 @@ def esc(s: str) -> str:
 def quote_html(src_dir: Path, q: dict, ctx: list[str], c0: int) -> str:
     loc = f"{q['file']}:{q['line']}" + (f"-{q['end']}" if q.get("end") else "")
     hit = range(q["line"], q.get("end", q["line"]) + 1)
-    # markdown の空行で間延びするので、空の行は飛ばす（行番号はそのまま残るので位置は追える）
-    # span は display:block なので区切りの改行は入れない（入れると行間が二重になった）
+    # Blank lines in markdown spread things out, so skip empty lines (line numbers stay, so positions can still be traced)
+    # span is display:block, so no newline between them (with one, the line spacing doubled)
     ctx_html = "".join(
         f'<span class="{"hit" if c0 + i in hit else ""}"><b>{c0 + i}</b> {esc(t)}</span>'
         for i, t in enumerate(ctx) if t.strip())
@@ -89,15 +89,15 @@ def quote_html(src_dir: Path, q: dict, ctx: list[str], c0: int) -> str:
     if q.get("who"):
         parts.append(f'<div class="who">{esc(q["who"])}</div>')
     parts.append(f'<blockquote>{esc(q["text"])}</blockquote>')
-    if q.get("ja"):
-        parts.append(f'<p class="ja"><span class="tag">訳</span>{esc(q["ja"])}</p>')
+    if q.get("en"):
+        parts.append(f'<p class="en"><span class="tag">Translation</span>{esc(q["en"])}</p>')
     meta = [f'<code>{esc(loc)}</code>']
     if q.get("mark"):
         meta.append(f'<span class="mark">{esc(q["mark"])}</span>')
     if q.get("context_note"):
         meta.append(f'<span class="cn">{esc(q["context_note"])}</span>')
     parts.append(f'<figcaption>{" ".join(meta)}</figcaption>')
-    parts.append(f'<details><summary>前後を読む（{c0}〜{c0 + len(ctx) - 1}行）</summary><pre>{ctx_html}</pre></details>')
+    parts.append(f'<details><summary>Read around it (lines {c0}–{c0 + len(ctx) - 1})</summary><pre>{ctx_html}</pre></details>')
     parts.append("</figure>")
     return "\n".join(parts)
 
@@ -106,7 +106,7 @@ CSS = """
 :root{--bg:#f6efd3;--ink:#2e1703;--sub:#6b4a26;--accent:#814e0d;--card:#fbf7e8;--line:#e2cf9f;--hit:#efdcab}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#1f1710;--ink:#f1e6cc;--sub:#c9b28a;--accent:#e0a85a;--card:#2a2016;--line:#4a3a26;--hit:#4a3820}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic UI",sans-serif;line-height:1.85;font-size:16px}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI","Noto Sans JP","Hiragino Sans",sans-serif;line-height:1.7;font-size:16px}
 main{max-width:46rem;margin:0 auto;padding:2.5rem 1rem 5rem}
 h1{font-size:1.6rem;margin:0 0 .5rem;letter-spacing:.02em}
 h2{font-size:1.2rem;margin:3rem 0 .4rem;padding-top:1rem;border-top:1px solid var(--line)}
@@ -117,7 +117,7 @@ h2{font-size:1.2rem;margin:3rem 0 .4rem;padding-top:1rem;border-top:1px solid va
 .quote{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.1rem;margin:1rem 0}
 blockquote{margin:0;padding-left:.9rem;border-left:3px solid var(--accent);white-space:pre-wrap}
 .who{font-weight:600;margin-bottom:.4rem}
-.ja{margin:.6rem 0 0;color:var(--sub)}
+.en{margin:.6rem 0 0;color:var(--sub)}
 .tag{font-size:.75rem;border:1px solid var(--sub);border-radius:4px;padding:0 .3rem;margin-right:.4rem}
 figcaption{margin-top:.6rem;font-size:.8rem;color:var(--sub);display:flex;flex-wrap:wrap;gap:.5rem}
 code{font-family:ui-monospace,"Cascadia Code",monospace;font-size:.78rem}
@@ -148,23 +148,23 @@ def main() -> int:
         for q in g.get("quotes", []):
             ok, ctx, c0, _ = verify(src, q)
             if not ok:
-                bad.append(f"{q['file']}:{q['line']}  「{q['text'][:40]}…」")
+                bad.append(f"{q['file']}:{q['line']}  \"{q['text'][:40]}…\"")
             rendered[id(q)] = (ctx, c0)
     if bad:
-        print("原文に見つからない抜き書きがある（言い換えか、行番号のずれ）:")
+        print("Some extracts were not found in the source (a paraphrase, or line numbers that drifted):")
         print("\n".join("  " + b for b in bad))
         return 1
     total = sum(len(g.get("quotes", [])) for _, g in groups)
-    print(f"照合 OK: 抜き書き {total} 件がすべて原文のとおり")
+    print(f"Check OK: all {total} extracts match the sources")
     if check_only:
         return 0
 
     body = [f"<h1>{esc(data['title'])}</h1>",
-            f'<p class="lead">問い: {esc(data["question"])}</p>',
-            f'<p class="lead">止めた理由: {esc(data["stopped"])}</p>',
-            '<p class="note">ここに並ぶ引用は、すべて原文をそのまま切り出したもの（機械で照合済み）。エージェントが書いたのは見出し・状態・注記・「訳」だけ。要約はしていない。</p>']
+            f'<p class="lead">Question: {esc(data["question"])}</p>',
+            f'<p class="lead">Why it stopped: {esc(data["stopped"])}</p>',
+            '<p class="note">Every quote here is cut verbatim from a source (checked by machine). The agent wrote only the headings, statuses, notes, and "Translation" lines. Nothing is summarised.</p>']
     for c in data["claims"]:
-        cls = "status none" if c["status"] == "付かなかった" else "status"
+        cls = "status none" if c["status"] == "unsourced" else "status"
         body.append(f'<h2>{esc(c["claim"])}<span class="{cls}">{esc(c["status"])}</span></h2>')
         if c.get("note"):
             body.append(f'<p class="note">{esc(c["note"])}</p>')
@@ -172,19 +172,19 @@ def main() -> int:
             ctx, c0 = rendered[id(q)]
             body.append(quote_html(src, q, ctx, c0))
     for d in data.get("disagreements", []):
-        body.append(f'<h2>食い違い: {esc(d["topic"])}</h2><p class="note">どれが正しいかは書かない。並べるだけ。</p>')
+        body.append(f'<h2>Disagreement: {esc(d["topic"])}</h2><p class="note">Which is right is not stated. They are only laid side by side.</p>')
         for q in d.get("quotes", []):
             ctx, c0 = rendered[id(q)]
             body.append(quote_html(src, q, ctx, c0))
     if data.get("unreached"):
-        body.append("<h2>届かなかったもの</h2><ul class=\"unreached\">"
+        body.append("<h2>Not reached</h2><ul class=\"unreached\">"
                     + "".join(f"<li>{esc(u)}</li>" for u in data["unreached"]) + "</ul>")
-    # 絶対パスはページを人に渡すと手元のユーザー名を漏らすので、ページからの相対で書く
-    body.append(f'<footer>imozuru の抜き書き・原文はこのページと同じ場所の {esc(src.name)}/</footer>')
+    # An absolute path would leak the local user name when the page is shared, so write it relative to the page
+    body.append(f'<footer>imozuru extracts. The sources are in {esc(src.name)}/ next to this page</footer>')
 
     page = f"""<!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{esc(data['title'])} 抜き書き</title><style>{CSS}</style></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{esc(data['title'])} extracts</title><style>{CSS}</style></head>
 <body><main>
 {chr(10).join(body)}
 </main></body></html>
@@ -196,6 +196,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    # 抜き書きの頭を出すので、端末の文字コードに無い字（cp932 の à など）で落ちないようにする
+    # It prints the start of extracts, so don't crash on characters the terminal encoding lacks (à in cp932, etc.)
     sys.stdout.reconfigure(errors="replace")
     sys.exit(main())

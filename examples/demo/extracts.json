@@ -1,33 +1,33 @@
 {
-  "title": "影を2色で塗る順番（手本）",
-  "question": "影を2色で塗るとき、暗い色と明るい色のどちらを先に置くとよいか",
-  "stopped": "要る主張の全部に原文の場所が付いた（手本なので原文は2本だけ）",
+  "title": "Which order to lay two shadow tones (demo)",
+  "question": "When shading with two tones, is it better to lay the dark one or the light one first?",
+  "stopped": "Every needed claim has a location in a source (a demo, so only two sources)",
   "claims": [
     {
-      "claim": "暗い色を先に置くと境目が濁りにくい",
-      "status": "付いた",
-      "note": "個人の記録と論文の両方にある。",
+      "claim": "Laying the dark tone first keeps the boundary from getting muddy",
+      "status": "sourced",
+      "note": "Appears in both a personal record and a paper.",
       "quotes": [
-        {"file": "sample-blog.md", "line": 5, "end": 6, "text": "わたしは影を塗るとき、まず一番暗い色を先に置く。 明るい影から置くと、あとで暗い影を重ねたときに境目が濁るからだ。", "mark": "〔本人〕"},
-        {"file": "sample-paper.txt", "line": 6, "end": 8, "text": "In 9 of 12 cases, placing the darkest tone first produced fewer visible seams at layer boundaries.", "ja": "12件中9件で、一番暗い色を先に置くと、レイヤーの境目の継ぎ目が目立ちにくかった。", "mark": "〔論文〕測定あり"}
+        {"file": "sample-blog.md", "line": 5, "end": 6, "text": "わたしは影を塗るとき、まず一番暗い色を先に置く。 明るい影から置くと、あとで暗い影を重ねたときに境目が濁るからだ。", "en": "When I shade, I lay the darkest tone first. If I start with the light shadow, the boundary gets muddy when I layer the dark shadow over it later.", "mark": "[First-hand]"},
+        {"file": "sample-paper.txt", "line": 6, "end": 8, "text": "In 9 of 12 cases, placing the darkest tone first produced fewer visible seams at layer boundaries.", "mark": "[Paper] has measurements"}
       ]
     },
     {
-      "claim": "その差が消える条件",
-      "status": "一部だけ",
-      "note": "論文の1文だけ。どれくらいのぼかしで消えるかは書かれていない。",
+      "claim": "When the difference disappears",
+      "status": "partial",
+      "note": "One sentence in the paper. It doesn't say how much blending makes it disappear.",
       "quotes": [
-        {"file": "sample-paper.txt", "line": 9, "text": "The effect disappeared when layers were blended with a soft brush.", "ja": "レイヤーを柔らかいブラシでなじませると、この差は消えた。", "mark": "〔論文〕"}
+        {"file": "sample-paper.txt", "line": 9, "text": "The effect disappeared when layers were blended with a soft brush.", "mark": "[Paper]"}
       ]
     }
   ],
   "disagreements": [
     {
-      "topic": "水彩では順番が逆か",
+      "topic": "Is the order reversed for watercolour?",
       "quotes": [
-        {"file": "sample-blog.md", "line": 10, "end": 11, "text": "ただし水彩の場合は逆で、明るい色から重ねるのが定石だと聞く。 自分は水彩を描かないので、ここは確かめていない。", "who": "見本の記事の書き手（伝聞）"}
+        {"file": "sample-blog.md", "line": 10, "end": 11, "text": "ただし水彩の場合は逆で、明るい色から重ねるのが定石だと聞く。 自分は水彩を描かないので、ここは確かめていない。", "en": "With watercolour, though, I hear it's the other way round, and the standard is to layer from the light tones. I don't paint in watercolour, so I haven't checked this.", "who": "The writer of the sample post (hearsay)"}
       ]
     }
   ],
-  "unreached": ["水彩の塗り順を書き手自身が試した記録（見つからなかった・手本の想定）"]
+  "unreached": ["A record of the writer themselves trying the watercolour order (not found; assumed for the demo)"]
 }

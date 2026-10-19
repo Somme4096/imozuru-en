@@ -12,7 +12,7 @@ It applies ideas from information-seeking research in library and information sc
 
 The name comes from *imozuru-shiki* (芋づる式), the Japanese idiom for things coming up one after another, like sweet potatoes pulled up on a single vine.
 
-> **Language note**: The skill's instructions (`SKILL.md`), the messages from its scripts, and the labels on the extract page are in Japanese. Claude reads the instructions in any language, but this skill has only been tried with requests written in Japanese.
+> **Language note**: This is the English edition. The skill's instructions (`SKILL.md`), the messages from its scripts, and the labels on the extract page are in English. The skill was developed and tried with requests written in Japanese.
 
 ## How it differs from just asking
 
@@ -144,7 +144,7 @@ So, following extracting from Ellis's model, the skill builds a page that cuts t
 
 ## Where the rules come from
 
-`skills/imozuru/references/theory.md` lists which paper, and which part of it, each rule in the skill comes from (in Japanese).
+`skills/imozuru/references/theory.md` lists which paper, and which part of it, each rule in the skill comes from.
 
 ## Cautions
 

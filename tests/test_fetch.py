@@ -1,4 +1,4 @@
-"""再取得が失敗したときの原文保全と、成功時の保存先を検査する。"""
+"""Test that sources survive a failed refetch, and where they go on success."""
 
 import contextlib
 import importlib.util
@@ -27,7 +27,7 @@ class FetchPreservationTests(unittest.TestCase):
         self.addCleanup(self.stack.close)
         self.stack.enter_context(contextlib.redirect_stdout(self.stdout))
         self.stack.enter_context(patch.object(fetch, "HAS_AX", False))
-        # 外部コマンドの有無で結果が変わらないように、既定では全部あることにする
+        # Assume every external command exists by default, so results don't depend on what is installed
         self.stack.enter_context(patch.object(fetch, "missing", return_value=[]))
 
     def seed(self, *suffixes):
